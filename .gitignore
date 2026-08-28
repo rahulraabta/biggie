@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Build/test artifacts
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Vercel local state
+.vercel/
+
+# Claude/agent local state
+.claude/
+.remember/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
