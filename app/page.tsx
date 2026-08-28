@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
+import { HeroStrip } from '@/components/layout/HeroStrip';
+import { CommandMetricsRow } from '@/components/layout/CommandMetricsRow';
 import { StatsBar } from '@/components/layout/StatsBar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Footer } from '@/components/layout/Footer';
@@ -9,10 +11,15 @@ import { OpportunityCard } from '@/components/cards/OpportunityCard';
 import { OpportunityDetailDrawer } from '@/components/cards/OpportunityDetailDrawer';
 import { QAPanel } from '@/components/qa/QAPanel';
 import { OpportunityGlobe } from '@/components/globe/OpportunityGlobe';
+import { RadarActivityOverlay } from '@/components/globe/RadarActivityOverlay';
 import { CountryIntelPanel } from '@/components/map/CountryIntelPanel';
 import { RegionIntelPanel } from '@/components/map/RegionIntelPanel';
 import { AggregationIntelPanel } from '@/components/map/AggregationIntelPanel';
 import { FocusMarketNavRail } from '@/components/map/FocusMarketNavRail';
+import { MarketPulseTable } from '@/components/dashboard/MarketPulseTable';
+import { OpportunityWatchList } from '@/components/dashboard/OpportunityWatchList';
+import { TrendingSectorsBar } from '@/components/dashboard/TrendingSectorsBar';
+import { RadarExplanatoryGuide } from '@/components/dashboard/RadarExplanatoryGuide';
 import { getFocusMarket, isAggregationMarket } from '@/src/config/focusMarkets';
 import { MapOverviewResponse, CountryIntelligenceSummary, RegionalIntelligenceSummary, OpportunitySummaryItem } from '@/src/types/mapTypes';
 import { OpportunityResponseItem } from '@/app/api/opportunities/route';
@@ -250,14 +257,35 @@ export default function DashboardPage() {
           fetchOpportunities();
         }}
         isLoading={isLoading || isOverviewLoading}
+        sourceMode={mapOverview?.source}
+        timeWindow={timeWindow}
+        onTimeWindowChange={setTimeWindow}
+        motionMode={motionMode}
+        onMotionModeChange={handleMotionModeChange}
         toggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
         toggleQA={() => setMobileQAOpen(!mobileQAOpen)}
       />
 
-      {/* Navigation Sub-Header (Mode Switcher & Stats Bar) */}
-      <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 lg:px-8 py-2.5 flex items-center justify-between gap-4">
+      {/* Hero Intelligence Context Strip */}
+      <HeroStrip
+        sourceMode={mapOverview?.source}
+        totalGlobalSignals={mapOverview?.totalGlobalSignals}
+        totalOpportunities={opportunities.length}
+        lastUpdated={mapOverview?.lastUpdated}
+        timeWindow={timeWindow}
+      />
+
+      {/* Command Center Real-Time Metrics Row */}
+      <CommandMetricsRow
+        mapOverview={mapOverview}
+        totalOpportunitiesCount={opportunities.length}
+        isLoading={isOverviewLoading || isLoading}
+      />
+
+      {/* Navigation Sub-Header (Mode Switcher) */}
+      <div className="bg-[#080d1a] border-b border-slate-800/80 px-4 lg:px-8 py-2.5 flex items-center justify-between gap-4">
         {/* Navigation Mode Switcher */}
-        <div className="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <div className="flex items-center space-x-1.5 bg-[#060a12] p-1 rounded-xl border border-slate-800">
           <button
             onClick={() => setActiveTab('earth')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
@@ -296,176 +324,218 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex flex-col overflow-y-auto relative bg-[#060a12]">
         {/* TAB 1: 3D Opportunity Earth Radar Main Stage */}
         {activeTab === 'earth' && (
-          <div className="flex-1 flex overflow-hidden relative">
-            {/* 3D Globe Stage */}
-            <div className="flex-1 relative h-[calc(100vh-140px)] min-h-[500px]">
-              {/* Priority Focus Markets Navigation Rail */}
-              <FocusMarketNavRail
-                selectedMarketId={selectedMarketId}
-                selectedCountryCode={selectedCountryCode}
-                onSelectMarket={handleSelectMarket}
-                onResetView={handleResetWorldView}
-              />
+          <div className="flex flex-col w-full">
+            {/* Upper 3D Globe & Dynamic Intel Stage */}
+            <div className="flex flex-col lg:flex-row w-full min-h-[580px] h-[calc(100vh-220px)] border-b border-slate-800/80">
+              {/* 3D Globe Stage */}
+              <div className="flex-1 relative h-full min-h-[500px]">
+                {/* Priority Focus Markets Navigation Rail */}
+                <FocusMarketNavRail
+                  selectedMarketId={selectedMarketId}
+                  selectedCountryCode={selectedCountryCode}
+                  onSelectMarket={handleSelectMarket}
+                  onResetView={handleResetWorldView}
+                />
 
-              <OpportunityGlobe
-                points={mapOverview?.points || []}
-                selectedCountryCode={selectedCountryCode}
-                selectedRegionName={selectedRegionName}
-                selectedMarketId={selectedMarketId}
-                onSelectCountry={handleSelectCountry}
-                onResetView={handleResetWorldView}
-                isAutoRotate={isAutoRotate}
-                onToggleAutoRotate={() => setIsAutoRotate(!isAutoRotate)}
-                motionMode={motionMode}
-                onMotionModeChange={handleMotionModeChange}
-              />
+                {/* Radar Status & Activity Overlay */}
+                <RadarActivityOverlay
+                  timeWindow={timeWindow}
+                  selectedMarketId={selectedMarketId}
+                  selectedCountryCode={selectedCountryCode}
+                  selectedRegionName={selectedRegionName}
+                  granularity={regionSummary?.granularity || countrySummary?.granularity || 'country'}
+                  sourceMode={mapOverview?.source}
+                  lastUpdated={mapOverview?.lastUpdated}
+                />
+
+                <OpportunityGlobe
+                  points={mapOverview?.points || []}
+                  selectedCountryCode={selectedCountryCode}
+                  selectedRegionName={selectedRegionName}
+                  selectedMarketId={selectedMarketId}
+                  onSelectCountry={handleSelectCountry}
+                  onResetView={handleResetWorldView}
+                  isAutoRotate={isAutoRotate}
+                  onToggleAutoRotate={() => setIsAutoRotate(!isAutoRotate)}
+                  motionMode={motionMode}
+                  onMotionModeChange={handleMotionModeChange}
+                />
+              </div>
+
+              {/* Desktop Dynamic Right Intelligence Panel */}
+              <div className="hidden lg:block w-[420px] h-full border-l border-slate-800/80 bg-[#080d1a]/95 backdrop-blur-xl">
+                {/* State A: Region Selected */}
+                {selectedRegionName && regionSummary && (
+                  <RegionIntelPanel
+                    region={regionSummary}
+                    onClose={() => {
+                      setSelectedRegionName(null);
+                      setRegionSummary(null);
+                    }}
+                    onBackToCountry={() => {
+                      if (selectedCountryCode) fetchCountrySummary(selectedCountryCode);
+                    }}
+                    onSelectOpportunity={handleSelectCard}
+                    isLoading={isRegionLoading}
+                    timeWindow={timeWindow}
+                    onTimeWindowChange={setTimeWindow}
+                  />
+                )}
+
+                {/* State B: Country Selected */}
+                {selectedCountryCode && countrySummary && !selectedRegionName && (
+                  <CountryIntelPanel
+                    country={countrySummary}
+                    onClose={handleResetWorldView}
+                    onSelectOpportunity={handleSelectCard}
+                    onSelectRegion={(rName) => fetchRegionSummary(selectedCountryCode, rName)}
+                    isLoading={isCountryLoading}
+                    timeWindow={timeWindow}
+                    onTimeWindowChange={setTimeWindow}
+                  />
+                )}
+
+                {/* State C: Aggregation Market View (EU, ROW, etc.) */}
+                {!selectedCountryCode && selectedMarketId && isAggregationMarket(selectedMarketId) && (
+                  <AggregationIntelPanel
+                    market={getFocusMarket(selectedMarketId)!}
+                    mapOverview={mapOverview}
+                    opportunities={opportunities}
+                    onClose={handleResetWorldView}
+                    onSelectCountry={handleSelectCountry}
+                    onSelectOpportunity={handleSelectCard}
+                    onSelectRegion={(rName) => {
+                      if (selectedCountryCode) fetchRegionSummary(selectedCountryCode, rName);
+                    }}
+                  />
+                )}
+
+                {/* State D: Global Overview (No Selection) */}
+                {!selectedCountryCode && (!selectedMarketId || selectedMarketId === 'GLOBAL') && (
+                  <div className="h-full p-6 overflow-y-auto flex flex-col text-slate-100">
+                    <div className="flex items-center space-x-2 pb-4 border-b border-slate-800 mb-4">
+                      <Sparkles className="w-5 h-5 text-sky-400" />
+                      <div>
+                        <h2 className="text-base font-bold text-slate-100">Global Market Pulse</h2>
+                        <p className="text-xs text-slate-400">Select any country or signal node to drill down</p>
+                      </div>
+                    </div>
+
+                    {/* High Level Metrics */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                      <div className="p-3 bg-[#060a12] border border-slate-800 rounded-xl">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
+                          Global Signal Density
+                        </span>
+                        <span className="text-lg font-bold text-sky-400">
+                          {mapOverview?.totalGlobalSignals || 85}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-xl">
+                        <span className="text-[10px] text-emerald-400 uppercase tracking-wider block mb-1">
+                          High-Viability Prospects
+                        </span>
+                        <span className="text-lg font-bold text-emerald-300">
+                          {mapOverview?.bandCounts.green || 4}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Top Active Countries */}
+                    <div className="mb-6">
+                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
+                        Top Country Hubs
+                      </h3>
+                      <div className="space-y-2">
+                        {(mapOverview?.points || []).slice(0, 5).map((pt) => {
+                          const bandMeta = getBandMetadata(pt.topOpportunityBand);
+                          return (
+                            <div
+                              key={pt.id}
+                              onClick={() => handleSelectCountry(pt.countryCode)}
+                              className="p-3 bg-[#060a12]/60 hover:bg-[#060a12] border border-slate-800/80 hover:border-sky-500/80 rounded-xl transition-all cursor-pointer flex items-center justify-between group"
+                            >
+                              <div>
+                                <div className="font-bold text-xs text-slate-200 group-hover:text-sky-400 transition-colors">
+                                  {pt.countryName} ({pt.countryCode})
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  Sector: <strong className="text-slate-300 uppercase">{pt.dominantSector}</strong>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${bandMeta.bgClass} ${bandMeta.textClass} ${bandMeta.borderClass}`}>
+                                  {pt.greenCount} High
+                                </span>
+                                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Top High-Viability Opportunities */}
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
+                        Top High-Viability Signals
+                      </h3>
+                      <div className="space-y-3">
+                        {opportunities.slice(0, 3).map((opp) => (
+                          <div
+                            key={opp.id}
+                            onClick={() => handleSelectCard(opp)}
+                            className="p-3.5 bg-[#060a12]/60 hover:bg-[#060a12] border border-slate-800 hover:border-sky-500/80 rounded-xl transition-all cursor-pointer group"
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <span className="text-xs font-bold text-slate-200 group-hover:text-sky-400 transition-colors line-clamp-1">
+                                {opp.title}
+                              </span>
+                              <span className="text-xs font-bold text-emerald-400 shrink-0">
+                                {opp.probability_score}%
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 line-clamp-2">
+                              {opp.short_description}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Desktop Dynamic Right Intelligence Panel */}
-            <div className="hidden lg:block w-[420px] h-[calc(100vh-140px)] border-l border-slate-800 bg-slate-900/90 backdrop-blur-xl">
-              {/* State A: Region Selected */}
-              {selectedRegionName && regionSummary && (
-                <RegionIntelPanel
-                  region={regionSummary}
-                  onClose={() => {
-                    setSelectedRegionName(null);
-                    setRegionSummary(null);
-                  }}
-                  onBackToCountry={() => {
-                    if (selectedCountryCode) fetchCountrySummary(selectedCountryCode);
-                  }}
-                  onSelectOpportunity={handleSelectCard}
-                  isLoading={isRegionLoading}
-                  timeWindow={timeWindow}
-                  onTimeWindowChange={setTimeWindow}
-                />
-              )}
+            {/* Lower Intelligence Section (Below the Fold) */}
+            <div className="max-w-7xl mx-auto w-full p-4 lg:p-6 space-y-6">
+              {/* Trending Sectors Bar */}
+              <TrendingSectorsBar
+                selectedSector={selectedSector}
+                onSectorChange={setSelectedSector}
+              />
 
-              {/* State B: Country Selected */}
-              {selectedCountryCode && countrySummary && !selectedRegionName && (
-                <CountryIntelPanel
-                  country={countrySummary}
-                  onClose={handleResetWorldView}
-                  onSelectOpportunity={handleSelectCard}
-                  onSelectRegion={(rName) => fetchRegionSummary(selectedCountryCode, rName)}
-                  isLoading={isCountryLoading}
-                  timeWindow={timeWindow}
-                  onTimeWindowChange={setTimeWindow}
-                />
-              )}
-
-              {/* State C: Aggregation Market View (EU, ROW, etc.) */}
-              {!selectedCountryCode && selectedMarketId && isAggregationMarket(selectedMarketId) && (
-                <AggregationIntelPanel
-                  market={getFocusMarket(selectedMarketId)!}
+              {/* Two Column Section: Priority Market Pulse & Top Opportunity Watch */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[400px]">
+                <MarketPulseTable
                   mapOverview={mapOverview}
-                  opportunities={opportunities}
-                  onClose={handleResetWorldView}
-                  onSelectCountry={handleSelectCountry}
-                  onSelectOpportunity={handleSelectCard}
-                  onSelectRegion={(rName) => {
-                    if (selectedCountryCode) fetchRegionSummary(selectedCountryCode, rName);
-                  }}
+                  selectedMarketId={selectedMarketId}
+                  selectedCountryCode={selectedCountryCode}
+                  onSelectMarket={handleSelectMarket}
                 />
-              )}
 
-              {/* State D: Global Overview (No Selection) */}
-              {!selectedCountryCode && (!selectedMarketId || selectedMarketId === 'GLOBAL') && (
-                <div className="h-full p-6 overflow-y-auto flex flex-col text-slate-100">
-                  <div className="flex items-center space-x-2 pb-4 border-b border-slate-800 mb-4">
-                    <Sparkles className="w-5 h-5 text-sky-400" />
-                    <div>
-                      <h2 className="text-base font-bold text-slate-100">Global Market Pulse</h2>
-                      <p className="text-xs text-slate-400">Select any country or signal node to drill down</p>
-                    </div>
-                  </div>
+                <OpportunityWatchList
+                  opportunities={opportunities}
+                  onSelectOpportunity={handleSelectCard}
+                  isLoading={isLoading}
+                />
+              </div>
 
-                  {/* High Level Metrics */}
-                  <div className="grid grid-cols-2 gap-3 mb-6">
-                    <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
-                        Global Signal Density
-                      </span>
-                      <span className="text-lg font-bold text-sky-400">
-                        {mapOverview?.totalGlobalSignals || 85}
-                      </span>
-                    </div>
-                    <div className="p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-xl">
-                      <span className="text-[10px] text-emerald-400 uppercase tracking-wider block mb-1">
-                        High-Viability Prospects
-                      </span>
-                      <span className="text-lg font-bold text-emerald-300">
-                        {mapOverview?.bandCounts.green || 4}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Top Active Countries */}
-                  <div className="mb-6">
-                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
-                      Top Country Hubs
-                    </h3>
-                    <div className="space-y-2">
-                      {(mapOverview?.points || []).slice(0, 5).map((pt) => {
-                        const bandMeta = getBandMetadata(pt.topOpportunityBand);
-                        return (
-                          <div
-                            key={pt.id}
-                            onClick={() => handleSelectCountry(pt.countryCode)}
-                            className="p-3 bg-slate-950/40 hover:bg-slate-950 border border-slate-800/80 hover:border-sky-500/80 rounded-xl transition-all cursor-pointer flex items-center justify-between group"
-                          >
-                            <div>
-                              <div className="font-bold text-xs text-slate-200 group-hover:text-sky-400 transition-colors">
-                                {pt.countryName} ({pt.countryCode})
-                              </div>
-                              <div className="text-[10px] text-slate-400 mt-0.5">
-                                Sector: <strong className="text-slate-300 uppercase">{pt.dominantSector}</strong>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${bandMeta.bgClass} ${bandMeta.textClass} ${bandMeta.borderClass}`}>
-                                {pt.greenCount} High
-                              </span>
-                              <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all" />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Top High-Viability Opportunities */}
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
-                      Top High-Viability Signals
-                    </h3>
-                    <div className="space-y-3">
-                      {opportunities.slice(0, 3).map((opp) => (
-                        <div
-                          key={opp.id}
-                          onClick={() => handleSelectCard(opp)}
-                          className="p-3.5 bg-slate-950/60 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/80 rounded-xl transition-all cursor-pointer group"
-                        >
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <span className="text-xs font-bold text-slate-200 group-hover:text-sky-400 transition-colors line-clamp-1">
-                              {opp.title}
-                            </span>
-                            <span className="text-xs font-bold text-emerald-400 shrink-0">
-                              {opp.probability_score}%
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-400 line-clamp-2">
-                            {opp.short_description}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Radar Methodology & AI Disclaimer Guide */}
+              <RadarExplanatoryGuide />
             </div>
           </div>
         )}
@@ -528,6 +598,26 @@ export default function DashboardPage() {
                       ))}
                     </AnimatePresence>
                   </motion.div>
+                )}
+
+                {!isLoading && !error && opportunities.length === 0 && (
+                  <div className="p-8 panel-surface text-center flex flex-col items-center justify-center max-w-md mx-auto my-12">
+                    <div className="p-3 bg-amber-950/60 border border-amber-800/80 rounded-2xl text-amber-400 mb-3">
+                      <X className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider mb-1">
+                      No verified opportunities match active filters
+                    </h3>
+                    <p className="text-xs text-slate-400 mb-4">
+                      Try broadening your search query, sector selection, or viability band criteria.
+                    </p>
+                    <button
+                      onClick={handleResetFilters}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                    >
+                      Reset All Filters
+                    </button>
+                  </div>
                 )}
               </div>
             </main>
