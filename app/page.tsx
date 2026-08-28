@@ -12,6 +12,7 @@ import { OpportunityDetailDrawer } from '@/components/cards/OpportunityDetailDra
 import { QAPanel } from '@/components/qa/QAPanel';
 import { OpportunityGlobe } from '@/components/globe/OpportunityGlobe';
 import { RadarActivityOverlay } from '@/components/globe/RadarActivityOverlay';
+import { WorldSignalOverlay } from '@/components/layout/WorldSignalOverlay';
 import { CountryIntelPanel } from '@/components/map/CountryIntelPanel';
 import { RegionIntelPanel } from '@/components/map/RegionIntelPanel';
 import { AggregationIntelPanel } from '@/components/map/AggregationIntelPanel';
@@ -242,7 +243,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex flex-col bg-[#060a12] text-slate-100 overflow-x-hidden">
       {/* Screen Reader Live Announcements */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
@@ -332,6 +333,15 @@ export default function DashboardPage() {
             <div className="flex flex-col lg:flex-row w-full min-h-[580px] h-[calc(100vh-220px)] border-b border-slate-800/80">
               {/* 3D Globe Stage */}
               <div className="flex-1 relative h-full min-h-[500px]">
+                {/* World Signal Stage Overlay */}
+                <WorldSignalOverlay
+                  selectedCountryCode={selectedCountryCode}
+                  selectedRegionName={selectedRegionName}
+                  selectedMarketId={selectedMarketId}
+                  totalGlobalSignals={mapOverview?.totalGlobalSignals}
+                  onSwitchToGrid={() => setActiveTab('grid')}
+                />
+
                 {/* Priority Focus Markets Navigation Rail */}
                 <FocusMarketNavRail
                   selectedMarketId={selectedMarketId}
