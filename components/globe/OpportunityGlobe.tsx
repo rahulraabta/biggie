@@ -1,26 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { GlobeProps } from './globe-types';
-import { GlobeControls } from './GlobeControls';
+import { OpportunityEarthGlobeAdapter } from './OpportunityEarthGlobeAdapter';
 import { WorldFallback } from '../map/WorldFallback';
-import { GlobeErrorBoundary } from './GlobeErrorBoundary';
-import { RefreshCw } from 'lucide-react';
-
-// SSR-disabled dynamic import of 3D Canvas
-const DynamicGlobeCanvas = dynamic(
-  () => import('./GlobeCanvas').then((mod) => mod.GlobeCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-slate-400 p-6">
-        <RefreshCw className="w-8 h-8 text-sky-400 animate-spin mb-3" />
-        <p className="text-xs font-semibold text-slate-300">Initializing 3D Opportunity Earth Grid...</p>
-      </div>
-    ),
-  }
-);
 
 export const OpportunityGlobe: React.FC<GlobeProps> = ({
   points,
@@ -62,36 +45,17 @@ export const OpportunityGlobe: React.FC<GlobeProps> = ({
   }
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-slate-950">
-      {/* 3D WebGL Globe Canvas wrapped in Error Boundary */}
-      <GlobeErrorBoundary
-        points={points}
-        selectedCountryCode={selectedCountryCode}
-        onSelectCountry={onSelectCountry}
-        onResetView={onResetView}
-      >
-        <DynamicGlobeCanvas
-          points={points}
-          selectedCountryCode={selectedCountryCode}
-          onSelectCountry={onSelectCountry}
-          onResetView={onResetView}
-          isAutoRotate={isAutoRotate}
-          motionMode={motionMode}
-        />
-      </GlobeErrorBoundary>
-
-      {/* Floating Controls & Legend Overlay */}
-      <GlobeControls
-        selectedCountryCode={selectedCountryCode}
-        selectedRegionName={selectedRegionName}
-        selectedMarketId={selectedMarketId}
-        onResetView={onResetView}
-        isAutoRotate={isAutoRotate}
-        onToggleAutoRotate={onToggleAutoRotate}
-        motionMode={motionMode}
-        onMotionModeChange={onMotionModeChange}
-        activePointCount={points.length}
-      />
-    </div>
+    <OpportunityEarthGlobeAdapter
+      points={points}
+      selectedCountryCode={selectedCountryCode}
+      selectedRegionName={selectedRegionName}
+      selectedMarketId={selectedMarketId}
+      onSelectCountry={onSelectCountry}
+      onResetView={onResetView}
+      isAutoRotate={isAutoRotate}
+      onToggleAutoRotate={onToggleAutoRotate}
+      motionMode={motionMode}
+      onMotionModeChange={onMotionModeChange}
+    />
   );
 };

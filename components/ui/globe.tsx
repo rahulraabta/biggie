@@ -2,11 +2,14 @@
 
 import createGlobe, { COBEOptions } from "cobe"
 import { useCallback, useEffect, useRef, useState } from "react"
-
 import { cn } from "@/lib/utils"
 
 export type GlobeConfig = COBEOptions & {
   onRender?: (state: Record<string, any>) => void
+  isAutoRotate?: boolean
+  autoRotateSpeed?: number
+  targetPhi?: number | null
+  targetTheta?: number | null
 }
 
 const GLOBE_CONFIG: GlobeConfig = {
@@ -44,58 +47,103 @@ export function Globe({
   className?: string
   config?: GlobeConfig
 }) {
-  let phi = 0
-  let width = 0
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const pointerInteracting = useRef(null)
-  const pointerInteractionMovement = useRef(0)
-  const [r, setR] = useState(0)
+  const pointerInteracting = useRef<{ x: number; y: number } | null>(null)
+  const phiRef = useRef<number>(config.phi ?? 0)
+  const thetaRef = useRef<number>(config.theta ?? 0.3)
+  const [width, setWidth] = useState(0)
 
-  const updatePointerInteraction = (value: any) => {
-    pointerInteracting.current = value
+  // Keep target refs updated so render loop can smoothly damp towards them
+  const configRef = useRef(config)
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
+
+  const updatePointerInteraction = (pos: { x: number; y: number } | null) => {
+    pointerInteracting.current = pos
     if (canvasRef.current) {
-      canvasRef.current.style.cursor = value ? "grabbing" : "grab"
+      canvasRef.current.style.cursor = pos ? "grabbing" : "grab"
     }
   }
 
-  const updateMovement = (clientX: any) => {
+  const updateMovement = (clientX: number, clientY: number) => {
     if (pointerInteracting.current !== null) {
-      const delta = clientX - pointerInteracting.current
-      pointerInteractionMovement.current = delta
-      setR(delta / 200)
+      const deltaX = clientX - pointerInteracting.current.x
+      const deltaY = clientY - pointerInteracting.current.y
+      pointerInteracting.current = { x: clientX, y: clientY }
+
+      phiRef.current += deltaX * 0.005
+      const newTheta = thetaRef.current - deltaY * 0.005
+      // Clamp theta so sphere doesn't flip upside down
+      const maxTheta = Math.PI / 2.2
+      const minTheta = -Math.PI / 2.2
+      thetaRef.current = Math.max(minTheta, Math.min(maxTheta, newTheta))
     }
   }
 
-  const onRender = useCallback(
-    (state: Record<string, any>) => {
-      if (!pointerInteracting.current) phi += 0.005
-      state.phi = phi + r
-      state.width = width * 2
-      state.height = width * 2
-    },
-    [r],
-  )
+  const onRender = useCallback((state: Record<string, any>) => {
+    const currentConfig = configRef.current
+    const isDragging = pointerInteracting.current !== null
 
-  const onResize = () => {
+    if (!isDragging) {
+      const targetPhi = currentConfig.targetPhi
+      const targetTheta = currentConfig.targetTheta
+
+      if (targetPhi !== undefined && targetPhi !== null) {
+        // Shortest-path angle interpolation for phi
+        let diff = (targetPhi - phiRef.current) % (2 * Math.PI)
+        if (diff > Math.PI) diff -= 2 * Math.PI
+        if (diff < -Math.PI) diff += 2 * Math.PI
+        phiRef.current += diff * 0.08
+      } else if (currentConfig.isAutoRotate !== false) {
+        const speed = currentConfig.autoRotateSpeed ?? 0.003
+        phiRef.current += speed
+      }
+
+      if (targetTheta !== undefined && targetTheta !== null) {
+        const diffTheta = targetTheta - thetaRef.current
+        thetaRef.current += diffTheta * 0.08
+      }
+    }
+
+    state.phi = phiRef.current
+    state.theta = thetaRef.current
+
+    if (currentConfig.onRender) {
+      currentConfig.onRender(state)
+    }
+  }, [])
+
+  const onResize = useCallback(() => {
     if (canvasRef.current) {
-      width = canvasRef.current.offsetWidth
+      setWidth(canvasRef.current.offsetWidth)
     }
-  }
+  }, [])
 
   useEffect(() => {
     window.addEventListener("resize", onResize)
     onResize()
+    return () => window.removeEventListener("resize", onResize)
+  }, [onResize])
 
-    const globe = createGlobe(canvasRef.current!, {
+  useEffect(() => {
+    if (!canvasRef.current || width === 0) return
+
+    const globe = createGlobe(canvasRef.current, {
       ...config,
       width: width * 2,
       height: width * 2,
       onRender,
     } as any)
 
-    setTimeout(() => (canvasRef.current!.style.opacity = "1"))
-    return () => globe.destroy()
-  }, [])
+    if (canvasRef.current) {
+      canvasRef.current.style.opacity = "1"
+    }
+
+    return () => {
+      globe.destroy()
+    }
+  }, [width, config.markers, config.mapSamples, config.dark, config.diffuse, onRender])
 
   return (
     <div
@@ -110,15 +158,21 @@ export function Globe({
         )}
         ref={canvasRef}
         onPointerDown={(e) =>
-          updatePointerInteraction(
-            e.clientX - pointerInteractionMovement.current,
-          )
+          updatePointerInteraction({ x: e.clientX, y: e.clientY })
         }
         onPointerUp={() => updatePointerInteraction(null)}
         onPointerOut={() => updatePointerInteraction(null)}
-        onMouseMove={(e) => updateMovement(e.clientX)}
+        onMouseMove={(e) => updateMovement(e.clientX, e.clientY)}
+        onTouchStart={(e) =>
+          e.touches[0] &&
+          updatePointerInteraction({
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY,
+          })
+        }
+        onTouchEnd={() => updatePointerInteraction(null)}
         onTouchMove={(e) =>
-          e.touches[0] && updateMovement(e.touches[0].clientX)
+          e.touches[0] && updateMovement(e.touches[0].clientX, e.touches[0].clientY)
         }
       />
     </div>

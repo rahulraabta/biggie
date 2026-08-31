@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Activity, ShieldCheck, AlertCircle, Clock, MapPin, Compass } from 'lucide-react';
+import { Activity, MapPin, Compass } from 'lucide-react';
 import { GeographicGranularity } from '@/src/types/mapTypes';
 
 interface RadarActivityOverlayProps {
@@ -36,14 +36,14 @@ export const RadarActivityOverlay: React.FC<RadarActivityOverlayProps> = ({
     : 'Worldwide Overview';
 
   return (
-    <div className="absolute top-4 right-4 z-20 pointer-events-auto bg-[#080d1a]/90 backdrop-blur-md border border-slate-800 rounded-xl p-3 shadow-2xl text-xs max-w-xs space-y-2">
+    <div className="absolute top-4 right-4 z-20 pointer-events-auto bg-[#080d1a]/95 backdrop-blur-xl border border-slate-800 rounded-xl p-3 shadow-2xl text-xs max-w-xs space-y-2 font-mono">
       <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
         <span className="font-bold text-slate-200 uppercase tracking-wider text-[10px] flex items-center">
           <Activity className="w-3.5 h-3.5 text-sky-400 mr-1.5 animate-pulse" />
           Radar Status
         </span>
         <span
-          className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${
+          className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase border ${
             sourceMode === 'database'
               ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80'
               : 'bg-amber-950/80 text-amber-300 border-amber-700/80'
