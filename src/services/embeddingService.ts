@@ -23,6 +23,63 @@ export const EMBEDDING_DIMENSIONS = 1024;
 /** Voyage embed endpoint accepts at most 128 inputs per request. */
 const MAX_BATCH_SIZE = 128;
 
+/**
+ * Minimum spacing between successive Voyage embed API calls. The free tier
+ * allows 3 requests/minute, so calls are spaced ~22s apart. Override with
+ * VOYAGE_MIN_INTERVAL_MS on paid tiers.
+ */
+const MIN_EMBED_INTERVAL_MS = Math.max(0, parseInt(process.env.VOYAGE_MIN_INTERVAL_MS || '22000', 10));
+/** Pause before each HTTP 429 retry; after MAX_429_RETRIES attempts the error propagates. */
+const RETRY_429_PAUSE_MS = 22_000;
+const MAX_429_RETRIES = 3;
+
+/** Timestamp of the last embed API call (module-level, per process). */
+let lastEmbedAt = 0;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Waits until the next embed call is at least MIN_EMBED_INTERVAL_MS after the previous one. */
+async function throttleEmbed(): Promise<void> {
+  const elapsed = Date.now() - lastEmbedAt;
+  if (lastEmbedAt > 0 && elapsed < MIN_EMBED_INTERVAL_MS) {
+    const waitMs = MIN_EMBED_INTERVAL_MS - elapsed;
+    console.warn(
+      `[Voyage Rate Limiter] spacing embed call ${(waitMs / 1000).toFixed(1)}s to respect the 3 RPM free tier...`
+    );
+    await sleep(waitMs);
+  }
+}
+
+/**
+ * Rate-limited Voyage embed call: spaces requests MIN_EMBED_INTERVAL_MS apart
+ * and retries HTTP 429 up to 3 times with a 22s pause between attempts before
+ * letting the error propagate (callers soft-fail: rows keep embedding NULL
+ * for the generate-embeddings worker to backfill).
+ */
+async function rateLimitedEmbed(
+  request: Parameters<VoyageAIClient['embed']>[0]
+): Promise<Awaited<ReturnType<VoyageAIClient['embed']>>> {
+  const client = getVoyageClient();
+  for (let attempt = 0; ; attempt++) {
+    await throttleEmbed();
+    lastEmbedAt = Date.now();
+    try {
+      return await client.embed(request);
+    } catch (err: any) {
+      const isRateLimit =
+        err?.statusCode === 429 || /status code: 429|\b429\b/.test(String(err?.message || ''));
+      if (!isRateLimit || attempt >= MAX_429_RETRIES) throw err;
+      console.warn(
+        `[Voyage Rate Limiter] HTTP 429 on embed (attempt ${attempt + 1}/${MAX_429_RETRIES + 1}). ` +
+          `Retrying in ${RETRY_429_PAUSE_MS / 1000}s...`
+      );
+      await sleep(RETRY_429_PAUSE_MS);
+    }
+  }
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var voyageClient: VoyageAIClient | undefined;
@@ -67,12 +124,11 @@ export function buildEmbeddingInput(record: EmbeddingSourceRecord): string {
 /** Embeds a list of documents (stored opportunities) in batches of ≤128. */
 export async function embedDocuments(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const client = getVoyageClient();
   const vectors: number[][] = [];
 
   for (let i = 0; i < texts.length; i += MAX_BATCH_SIZE) {
     const batch = texts.slice(i, i + MAX_BATCH_SIZE);
-    const res = await client.embed({
+    const res = await rateLimitedEmbed({
       input: batch,
       model: EMBEDDING_MODEL,
       inputType: 'document',
@@ -97,8 +153,7 @@ export async function embedDocuments(texts: string[]): Promise<number[][]> {
 
 /** Embeds a single search query (input_type 'query' — asymmetric retrieval). */
 export async function embedQuery(queryText: string): Promise<number[]> {
-  const client = getVoyageClient();
-  const res = await client.embed({
+  const res = await rateLimitedEmbed({
     input: queryText,
     model: EMBEDDING_MODEL,
     inputType: 'query',
@@ -121,22 +176,59 @@ export interface SemanticSearchResult {
   probability_score: number;
   dominant_sector: string | null;
   primary_region: string | null;
-  distance: number;
-  similarity: number;
+  /** Cosine similarity from the vector leg (0 when the row matched via FTS only). */
+  vector_similarity: number;
+  /** ts_rank_cd cover-density score from the lexical leg (0 when matched via vectors only). */
+  text_score: number;
+  /** Reciprocal rank fusion score: 1/(60 + vector_rank) + 1/(60 + text_rank). */
+  rrf_score: number;
+}
+
+/** Hybrid search options: RRF fusion of voyage-4 vector similarity and BM25-style FTS. */
+export interface SearchOptions {
+  limit?: number;
+  /** Minimum vector similarity for vector-leg matches; text-only matches always pass. Default 0.22. */
+  minSimilarity?: number;
 }
 
 /**
- * Semantic similarity search over opportunities: embeds the query with
- * voyage-4 (input_type 'query') and ranks by cosine distance (<=>) against
- * the HNSW idx_opportunities_embedding index on Neon.
+ * Hybrid semantic + lexical search over opportunities using Reciprocal Rank
+ * Fusion (k = 60). The query is embedded with voyage-4 (input_type 'query')
+ * for the vector leg, while websearch_to_tsquery drives the tsvector leg;
+ * both rankings are fused so a result ranks highly if either mode favors it.
  */
-export async function searchOpportunities(queryText: string, limit = 5): Promise<SemanticSearchResult[]> {
+export async function searchOpportunities(
+  queryText: string,
+  options: SearchOptions = {}
+): Promise<SemanticSearchResult[]> {
+  const limit = options.limit ?? 10;
+  const minSimilarity = options.minSimilarity ?? 0.22;
+
   const vector = await embedQuery(queryText);
   // JSON.stringify of a number[] yields '[0.1,0.2,...]' — exactly the pgvector text format
   const vectorLiteral = JSON.stringify(vector);
 
-  const res = await query<SemanticSearchResult & { distance: number }>(
-    `SELECT
+  const res = await query<SemanticSearchResult>(
+    `WITH vector_matches AS (
+       SELECT
+         id,
+         1 - (embedding <=> $1::vector) AS similarity,
+         ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS rank
+       FROM opportunities
+       WHERE embedding IS NOT NULL
+       ORDER BY embedding <=> $1::vector
+       LIMIT 25
+     ),
+     text_matches AS (
+       SELECT
+         id,
+         ts_rank_cd(text_search_vector, websearch_to_tsquery('english', $2)) AS text_score,
+         ROW_NUMBER() OVER (ORDER BY ts_rank_cd(text_search_vector, websearch_to_tsquery('english', $2)) DESC) AS rank
+       FROM opportunities
+       WHERE text_search_vector @@ websearch_to_tsquery('english', $2)
+       LIMIT 25
+     )
+     SELECT
        o.id,
        o.title,
        o.type,
@@ -145,18 +237,19 @@ export async function searchOpportunities(queryText: string, limit = 5): Promise
        o.probability_score,
        c.dominant_sector,
        c.primary_region,
-       o.embedding <=> $1::vector AS distance
+       COALESCE(v.similarity, 0) AS vector_similarity,
+       COALESCE(t.text_score, 0) AS text_score,
+       (COALESCE(1.0 / (60 + v.rank), 0.0) + COALESCE(1.0 / (60 + t.rank), 0.0)) AS rrf_score
      FROM opportunities o
      LEFT JOIN story_clusters c ON o.cluster_id = c.id
-     WHERE o.embedding IS NOT NULL
-     ORDER BY distance
-     LIMIT $2;`,
-    [vectorLiteral, limit]
+     LEFT JOIN vector_matches v ON o.id = v.id
+     LEFT JOIN text_matches t ON o.id = t.id
+     WHERE (v.id IS NOT NULL OR t.id IS NOT NULL)
+       AND (v.similarity IS NULL OR v.similarity >= $3)
+     ORDER BY rrf_score DESC
+     LIMIT $4;`,
+    [vectorLiteral, queryText, minSimilarity, limit]
   );
 
-  return res.rows.map((row) => ({
-    ...row,
-    // cosine distance 0 = identical direction → similarity 1.0
-    similarity: Math.round((1 - row.distance) * 1000) / 1000,
-  }));
+  return res.rows;
 }

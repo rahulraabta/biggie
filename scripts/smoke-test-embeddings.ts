@@ -61,10 +61,10 @@ async function main() {
   await runEmbeddingWorker({});
 
   // 3. Semantic search — vaccine cold chain should rank the India logistics item first
-  const results = await searchOpportunities('how to stop vaccines spoiling in remote areas', 3);
+  const results = await searchOpportunities('how to stop vaccines spoiling in remote areas', { limit: 3 });
   console.log('\n--- semantic search: "how to stop vaccines spoiling in remote areas" ---');
   for (const r of results) {
-    console.log(`  sim=${r.similarity} | ${r.title} | sector=${r.dominant_sector} region=${r.primary_region}`);
+    console.log(`  rrf=${Number(r.rrf_score).toFixed(4)} vec=${Number(r.vector_similarity).toFixed(3)} fts=${Number(r.text_score).toFixed(3)} | ${r.title}`);
   }
   if (results.length === 0) throw new Error('search returned no results');
 
