@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ExternalLink,
@@ -18,6 +18,9 @@ import {
   Share2,
   Check,
   Link2,
+  Gauge,
+  Skull,
+  TrendingUp,
 } from 'lucide-react';
 import { OpportunityResponseItem } from '@/app/api/opportunities/route';
 import { getBandMetadata } from '@/src/utils/geoUtils';
@@ -41,6 +44,68 @@ const LINKEDIN_ICON = (
     <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125M7.119 20.452H3.554V9h3.565zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.22 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0z" />
   </svg>
 );
+
+// --- P4: Viability score matrix weights (deconstruction of the composite) ---
+const SCORE_WEIGHTS = {
+  feasibility: 0.35,
+  marketImpact: 0.25,
+  timingVelocity: 0.2,
+  executionRisk: 0.2,
+} as const;
+
+/** Kill-criteria taxonomy: keyword heuristics map each flagged risk to the
+ *  failure mode that would invalidate the thesis. Domain vocabulary is
+ *  centralized here so tuning the classification is a one-place edit. */
+interface KillCategory {
+  label: string;
+  accent: 'red' | 'amber';
+  pattern: RegExp;
+}
+const KILL_CATEGORIES: KillCategory[] = [
+  { label: 'REGULATORY SHIFT', accent: 'amber', pattern: /regulat|polic|government|sanction|licen[cs]|complian|legal|tariff|geopolit/i },
+  { label: 'MACRO DETERIORATION', accent: 'red', pattern: /price|cost|margin|macro|inflation|demand|recession|volatil|currency|interest/i },
+  { label: 'COUNTERPARTY FAILURE', accent: 'red', pattern: /default|counterparty|off-?taker|supplier|partner|bankrupt|creditor/i },
+  { label: 'EXECUTION SLIP', accent: 'amber', pattern: /talent|team|hiring|execution|operational|infrastruct|scal|capacity|technolog/i },
+];
+
+const classifyKillCriterion = (risk: string): KillCategory =>
+  KILL_CATEGORIES.find((c) => c.pattern.test(risk)) ?? {
+    label: 'THESIS EROSION',
+    accent: 'amber',
+    pattern: /.*/,
+  };
+
+/** Signal velocity tiers for the 48h momentum trigger. */
+type VelocityTier = 'surge' | 'momentum' | 'steady';
+interface SignalVelocity {
+  tier: VelocityTier;
+  /** (source_count − 1) × 100 — cluster growth over its single initiating signal. */
+  surgePercent: number;
+  /** Cluster age in hours (display-capped at 48). */
+  windowHours: number;
+  /** Signals inside a 48h window (raw count while the cluster is younger than 48h). */
+  windowedCount: number;
+  sourceCount: number;
+}
+
+const computeSignalVelocity = (opp: OpportunityResponseItem): SignalVelocity | null => {
+  if (!opp.created_at || typeof opp.source_count !== 'number' || opp.source_count < 1) return null;
+  const createdMs = Date.parse(opp.created_at);
+  if (Number.isNaN(createdMs)) return null;
+  const ageHours = Math.max(1, (Date.now() - createdMs) / 3_600_000);
+  // Older clusters are density-normalized to a 48h window: sources × (48 / age).
+  const windowedCount =
+    ageHours <= 48 ? opp.source_count : Math.max(1, Math.round(opp.source_count * (48 / ageHours)));
+  const tier: VelocityTier =
+    ageHours <= 48 && opp.source_count >= 3 ? 'surge' : windowedCount >= 3 ? 'momentum' : 'steady';
+  return {
+    tier,
+    surgePercent: Math.max(0, (opp.source_count - 1) * 100),
+    windowHours: Math.min(48, Math.round(ageHours)),
+    windowedCount,
+    sourceCount: opp.source_count,
+  };
+};
 
 export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = ({
   opportunity,
@@ -139,6 +204,45 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
     }
   }, [opportunity]);
   // --- end one-click export ---
+
+  // --- P4: weighted viability score matrix ---
+  // Execution risk is not stored on the row — derived as the residual that
+  // reconciles the three stored components with the composite probability
+  // score, clamped to 0-100. When clamping bites, the weighted sum drifts
+  // from the composite and the matrix footnotes it rather than hiding it.
+  const scoreMatrix = useMemo(() => {
+    if (!opportunity) return null;
+    const weightedKnown =
+      opportunity.feasibility_score * SCORE_WEIGHTS.feasibility +
+      opportunity.impact_score * SCORE_WEIGHTS.marketImpact +
+      opportunity.time_to_market_score * SCORE_WEIGHTS.timingVelocity;
+    const residual = Math.round(
+      (opportunity.probability_score - weightedKnown) / SCORE_WEIGHTS.executionRisk
+    );
+    const executionRisk = Math.min(100, Math.max(0, residual));
+    return {
+      clamped: residual !== executionRisk,
+      composite: opportunity.probability_score,
+      rows: [
+        { label: 'FEASIBILITY', weight: SCORE_WEIGHTS.feasibility, raw: opportunity.feasibility_score, derived: false },
+        { label: 'MARKET IMPACT', weight: SCORE_WEIGHTS.marketImpact, raw: opportunity.impact_score, derived: false },
+        { label: 'TIMING & VELOCITY', weight: SCORE_WEIGHTS.timingVelocity, raw: opportunity.time_to_market_score, derived: false },
+        { label: 'EXECUTION RISK', weight: SCORE_WEIGHTS.executionRisk, raw: executionRisk, derived: true },
+      ].map((r) => ({ ...r, contribution: r.raw * r.weight })),
+    };
+  }, [opportunity]);
+
+  // --- P4: thesis invalidation criteria (risk → failure-mode classification) ---
+  const killCriteria = useMemo(
+    () => (opportunity?.risks || []).map((risk) => ({ risk, category: classifyKillCriterion(risk) })),
+    [opportunity]
+  );
+
+  // --- P4: 48h signal momentum trigger ---
+  const velocity = useMemo(
+    () => (opportunity ? computeSignalVelocity(opportunity) : null),
+    [opportunity]
+  );
 
   const openX = () =>
     window.open(
@@ -244,6 +348,29 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                       {opportunity.probability_score}% • {bandMeta.label}
                     </span>
                   )}
+                  {/* P4: Signal Velocity Trigger — 48h momentum badge */}
+                  {velocity && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold border ${
+                        velocity.tier === 'surge'
+                          ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/60 shadow-[0_0_12px_rgba(16,185,129,0.45)]'
+                          : velocity.tier === 'momentum'
+                          ? 'bg-amber-500/15 text-amber-200 border-amber-500/50'
+                          : 'bg-white/5 text-slate-400 border-white/10'
+                      }`}
+                      title="Signal momentum derived from cluster source volume over its formation window"
+                    >
+                      {velocity.tier === 'surge' && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                      )}
+                      <TrendingUp className="w-3 h-3" />
+                      {velocity.tier === 'surge'
+                        ? `+${velocity.surgePercent}% surge in last ${velocity.windowHours}h`
+                        : velocity.tier === 'momentum'
+                        ? `High Density Momentum · ~${velocity.windowedCount}/48h`
+                        : `~${velocity.windowedCount} signals/48h`}
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-base font-black text-white leading-snug tracking-tight">
                   {opportunity.title}
@@ -329,24 +456,69 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                 </div>
               )}
 
-              {/* Score Breakdown */}
-              <div>
-                <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2 font-mono">Viability Scores</h4>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-emerald-500/10 p-3 rounded-xl ring-1 ring-emerald-500/30">
-                    <span className="text-[10px] text-slate-400 block mb-0.5 font-bold">Feasibility</span>
-                    <span className="text-base font-black text-emerald-300 font-mono">{opportunity.feasibility_score}%</span>
-                  </div>
-                  <div className="bg-emerald-500/10 p-3 rounded-xl ring-1 ring-emerald-500/30">
-                    <span className="text-[10px] text-slate-400 block mb-0.5 font-bold">Impact</span>
-                    <span className="text-base font-black text-emerald-300 font-mono">{opportunity.impact_score}%</span>
-                  </div>
-                  <div className="bg-amber-500/10 p-3 rounded-xl ring-1 ring-amber-500/30">
-                    <span className="text-[10px] text-slate-400 block mb-0.5 font-bold">Time-to-Market</span>
-                    <span className="text-base font-black text-amber-300 font-mono">{opportunity.time_to_market_score}%</span>
+              {/* P4: Score Breakdown Matrix — weighted deconstruction of the composite viability score */}
+              {scoreMatrix && (
+                <div className="bg-white/5 rounded-2xl p-4 ring-1 ring-white/10 backdrop-blur-md">
+                  <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-300 mb-3 flex items-center font-mono">
+                    <Gauge className="w-3.5 h-3.5 mr-1.5 text-emerald-400" /> Viability Score Matrix
+                  </h4>
+                  <div className="font-mono text-[10px] uppercase">
+                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem_3.5rem] gap-x-2 text-slate-500 pb-1.5 border-b border-white/10">
+                      <span>Component</span>
+                      <span className="text-right">Raw</span>
+                      <span className="text-right">Wt</span>
+                      <span className="text-right">Contrib</span>
+                    </div>
+                    {scoreMatrix.rows.map((row) => (
+                      <div key={row.label} className="py-1.5 border-b border-white/5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem_3.5rem] gap-x-2 items-center">
+                          <span className="text-slate-300 font-bold truncate">
+                            {row.label}
+                            {row.derived && <span className="text-slate-500 font-normal"> *</span>}
+                          </span>
+                          <span
+                            className={`text-right font-black ${
+                              row.raw >= 70
+                                ? 'text-emerald-300'
+                                : row.raw >= 50
+                                ? 'text-amber-300'
+                                : 'text-rose-300'
+                            }`}
+                          >
+                            {row.raw}
+                          </span>
+                          <span className="text-right text-slate-500">{Math.round(row.weight * 100)}%</span>
+                          <span className="text-right text-slate-200 font-bold">{row.contribution.toFixed(1)}</span>
+                        </div>
+                        {/* Raw-score bar — color mirrors the numeric tier above */}
+                        <div className="mt-1 h-1 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              row.raw >= 70
+                                ? 'bg-emerald-400/70'
+                                : row.raw >= 50
+                                ? 'bg-amber-400/70'
+                                : 'bg-rose-400/70'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(0, row.raw))}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem_3.5rem] gap-x-2 pt-2 items-center">
+                      <span className="text-slate-200 font-black">Σ Composite</span>
+                      <span />
+                      <span className="text-right text-slate-500">100%</span>
+                      <span className="text-right text-emerald-300 font-black">{scoreMatrix.composite}%</span>
+                    </div>
+                    {scoreMatrix.clamped && (
+                      <p className="pt-1.5 text-[9px] text-slate-500 normal-case">
+                        * execution risk derived as the reconciling residual and clamped to 0-100 — weighted sum ≠ composite
+                      </p>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Detailed Analysis */}
               <div>
@@ -391,6 +563,44 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                     )}
                   </ul>
                 </div>
+              </div>
+
+              {/* P4: Thesis Invalidation — Kill Criteria */}
+              <div className="bg-rose-500/[0.05] ring-1 ring-rose-500/30 rounded-2xl p-4 backdrop-blur-md">
+                <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-rose-300 mb-1 flex items-center font-mono">
+                  <Skull className="w-3.5 h-3.5 mr-1.5 text-rose-400" /> Thesis Invalidation — Kill Criteria
+                </h4>
+                <p className="text-[9px] font-mono uppercase tracking-wider text-rose-200/60 mb-3">
+                  The venture thesis is void if any of these conditions materialize
+                </p>
+                {killCriteria.length > 0 ? (
+                  <ul className="space-y-2">
+                    {killCriteria.map(({ risk, category }, i) => (
+                      <li
+                        key={i}
+                        className={`p-2.5 rounded-xl ring-1 bg-white/[0.02] ${
+                          category.accent === 'red' ? 'ring-rose-500/40' : 'ring-amber-500/40'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block mb-1 px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider ${
+                            category.accent === 'red'
+                              ? 'bg-rose-500/15 text-rose-300'
+                              : 'bg-amber-500/15 text-amber-300'
+                          }`}
+                        >
+                          {category.label}
+                        </span>
+                        <p className="text-[11px] text-slate-300 font-medium leading-snug">{risk}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-500 italic">
+                    No explicit invalidation triggers flagged — treat the absence of kill criteria as
+                    unmodeled risk, not safety.
+                  </p>
+                )}
               </div>
 
               {/* Linked Source Articles */}
