@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
+import { CommandPalette } from '@/components/ui/CommandPalette';
 import { HeroStrip } from '@/components/layout/HeroStrip';
 import { CommandMetricsRow } from '@/components/layout/CommandMetricsRow';
-import { StatsBar } from '@/components/layout/StatsBar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Footer } from '@/components/layout/Footer';
 import { OpportunityCard } from '@/components/cards/OpportunityCard';
@@ -21,11 +21,12 @@ import { MarketPulseTable } from '@/components/dashboard/MarketPulseTable';
 import { OpportunityWatchList } from '@/components/dashboard/OpportunityWatchList';
 import { TrendingSectorsBar } from '@/components/dashboard/TrendingSectorsBar';
 import { RadarExplanatoryGuide } from '@/components/dashboard/RadarExplanatoryGuide';
+import { CosmicSpaceCanvas } from '@/components/space/CosmicSpaceCanvas';
 import { getFocusMarket, isAggregationMarket } from '@/src/config/focusMarkets';
 import { MapOverviewResponse, CountryIntelligenceSummary, RegionalIntelligenceSummary, OpportunitySummaryItem } from '@/src/types/mapTypes';
 import { OpportunityResponseItem } from '@/app/api/opportunities/route';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, Layers, Sparkles, RefreshCw, ShieldCheck, ArrowRight, BarChart2, X } from 'lucide-react';
+import { Globe, Layers, Sparkles, RefreshCw, ShieldCheck, ArrowRight, BarChart2, X, Compass, Filter, Bot, ChevronLeft } from 'lucide-react';
 import { getBandMetadata } from '@/src/utils/geoUtils';
 import { MotionMode, getSystemPreferredMotionMode, saveMotionModePreference } from '@/components/globe/motionConfig';
 
@@ -93,7 +94,7 @@ export default function DashboardPage() {
   const [selectedSort, setSelectedSort] = useState<string>('highest_probability');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Selected Opportunity for Detail Drawer & AI Q&A Context
+  // Selected Opportunity for 30% Features Pane Inspector & AI Q&A Context
   const [detailOpportunity, setDetailOpportunity] = useState<OpportunityResponseItem | null>(null);
   const [activeQAOpportunity, setActiveQAOpportunity] = useState<OpportunityResponseItem | null>(null);
 
@@ -101,6 +102,28 @@ export default function DashboardPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [mobileQAOpen, setMobileQAOpen] = useState<boolean>(false);
   const [mobileIntelOpen, setMobileIntelOpen] = useState<boolean>(false);
+
+  // Docked Assistant State (10% docked vs expanded)
+  const [isQADocked, setIsQADocked] = useState<boolean>(false);
+
+  // Dossiers Slide-Over Drawer (Immersive Earth Stage) — collapsed by default
+  const [isDossierOpen, setIsDossierOpen] = useState<boolean>(false);
+
+  // Global Command Palette (⌘K Search) — collapsed by default
+  const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+
+  // Global ⌘K / Ctrl+K toggle — the palette itself is a controlled child, so
+  // the shortcut owner lives here at the page root alongside its state.
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // Fetch Map Overview Data
   const fetchMapOverview = useCallback(async () => {
@@ -132,7 +155,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('[Country Summary Fetch Error]', err);
-    } fontally: {
+    } finally {
       setIsCountryLoading(false);
     }
   }, []);
@@ -169,13 +192,25 @@ export default function DashboardPage() {
       if (searchQuery) params.append('search', searchQuery);
 
       const res = await fetch(`/api/opportunities?${params.toString()}`);
-      const data = await res.json();
+      const json = await res.json();
 
-      if (data.success) {
-        setOpportunities(data.opportunities || []);
-        setTotalCount(data.count || 0);
+      // Support both a direct array and a wrapped payload ({opportunities} / {data})
+      const list: OpportunityResponseItem[] = Array.isArray(json)
+        ? json
+        : json.opportunities || json.data || [];
+
+      if (json.success) {
+        setOpportunities(list);
+        setTotalCount(json.count || list.length);
+        // Debug: what actually landed in state. Query + status are included so
+        // this line is directly comparable against a manual param-less API call.
+        console.log('[Page] Loaded opportunities count:', list.length, {
+          status: res.status,
+          query: params.toString() || '(no filters)',
+          source: json.source,
+        });
       } else {
-        throw new Error(data.error || 'Failed to fetch opportunities');
+        throw new Error(json.error || 'Failed to fetch opportunities');
       }
     } catch (err: any) {
       console.error('[Dashboard Page Error]', err);
@@ -209,7 +244,6 @@ export default function DashboardPage() {
         setSelectedCountryCode(market.isoCode);
         fetchCountrySummary(market.isoCode);
       } else {
-        // Aggregation market (EU, ROW)
         setSelectedCountryCode(null);
         setCountrySummary(null);
         setSelectedRegionName(null);
@@ -240,10 +274,15 @@ export default function DashboardPage() {
   const handleSelectCard = (opportunity: OpportunityResponseItem | OpportunitySummaryItem) => {
     setDetailOpportunity(opportunity as OpportunityResponseItem);
     setActiveQAOpportunity(opportunity as OpportunityResponseItem);
+    // Slide the dossiers drawer open over the canvas so the inspector is visible
+    setIsDossierOpen(true);
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#060a12] text-slate-100 overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 overflow-x-hidden relative">
+      {/* Background Canvas Particles */}
+      <CosmicSpaceCanvas />
+
       {/* Screen Reader Live Announcements */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
@@ -265,6 +304,7 @@ export default function DashboardPage() {
         onMotionModeChange={handleMotionModeChange}
         toggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
         toggleQA={() => setMobileQAOpen(!mobileQAOpen)}
+        onOpenCommandPalette={() => setIsSearchOpen(true)}
       />
 
       {/* Hero Intelligence Context Strip */}
@@ -283,314 +323,245 @@ export default function DashboardPage() {
         isLoading={isOverviewLoading || isLoading}
       />
 
-      {/* Navigation Sub-Header (Mode Switcher) */}
-      <div className="bg-[#080d1a] border-b border-slate-800/80 px-4 lg:px-8 py-2.5 flex items-center justify-between gap-4">
-        {/* Navigation Mode Switcher */}
-        <div className="flex items-center space-x-1.5 bg-[#060a12] p-1 rounded-xl border border-slate-800">
-          <button
+      {/* Navigation Sub-Header Mode Switcher */}
+      <div className="glass-chrome border-b border-white/10 px-4 lg:px-8 py-2.5 flex items-center justify-between gap-4 relative z-10">
+        <div className="flex items-center space-x-2 bg-white/5 p-1 rounded-2xl ring-1 ring-white/10 backdrop-blur-md">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => setActiveTab('earth')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-300 flex items-center space-x-2 ${
               activeTab === 'earth'
-                ? 'bg-sky-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-100 hover:bg-white/10'
             }`}
           >
-            <Globe className="w-3.5 h-3.5" />
-            <span>Opportunity Earth (3D Radar)</span>
-          </button>
+            <Globe className="w-4 h-4" />
+            <span>Opportunity Earth (3D Radar Map)</span>
+          </motion.button>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
             onClick={() => setActiveTab('grid')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all duration-300 flex items-center space-x-2 ${
               activeTab === 'grid'
-                ? 'bg-sky-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-100 hover:bg-white/10'
             }`}
           >
-            <BarChart2 className="w-3.5 h-3.5" />
+            <BarChart2 className="w-4 h-4" />
             <span>Analytical Signal Grid ({opportunities.length})</span>
-          </button>
+          </motion.button>
         </div>
 
-        {/* Real-Time Metrics Pills */}
-        <div className="hidden md:flex items-center space-x-3 text-xs">
-          <span className="text-slate-400">
-            Active Regions: <strong className="text-slate-200">{mapOverview?.totalCountriesActive || 7}</strong>
-          </span>
-          <span className="text-slate-600">|</span>
-          <span className="text-emerald-400 font-semibold">
-            High Viability: {mapOverview?.bandCounts.green || 4}
+        {/* Layout Split Ratio Badge */}
+        <div className="hidden md:flex items-center space-x-3 text-xs font-mono">
+          <span className="text-slate-400 font-bold">
+            Immersive Stage: <strong className="text-emerald-300">Full-Width 3D Earth | Dossiers & Atlas on Demand</strong>
           </span>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-y-auto relative bg-[#060a12]">
-        {/* TAB 1: 3D Opportunity Earth Radar Main Stage */}
-        {activeTab === 'earth' && (
-          <div className="flex flex-col w-full">
-            {/* Upper 3D Globe & Dynamic Intel Stage */}
-            <div className="flex flex-col lg:flex-row w-full min-h-[580px] h-[calc(100vh-220px)] border-b border-slate-800/80">
-              {/* 3D Globe Stage */}
-              <div className="flex-1 relative h-full min-h-[500px]">
-                {/* World Signal Stage Overlay */}
-                <WorldSignalOverlay
-                  selectedCountryCode={selectedCountryCode}
-                  selectedRegionName={selectedRegionName}
-                  selectedMarketId={selectedMarketId}
-                  totalGlobalSignals={mapOverview?.totalGlobalSignals}
-                  onSwitchToGrid={() => setActiveTab('grid')}
-                />
-
-                {/* Priority Focus Markets Navigation Rail */}
-                <FocusMarketNavRail
-                  selectedMarketId={selectedMarketId}
-                  selectedCountryCode={selectedCountryCode}
-                  onSelectMarket={handleSelectMarket}
-                  onResetView={handleResetWorldView}
-                />
-
-                {/* Radar Status & Activity Overlay */}
-                <RadarActivityOverlay
-                  timeWindow={timeWindow}
-                  selectedMarketId={selectedMarketId}
-                  selectedCountryCode={selectedCountryCode}
-                  selectedRegionName={selectedRegionName}
-                  granularity={regionSummary?.granularity || countrySummary?.granularity || 'country'}
-                  sourceMode={mapOverview?.source}
-                  lastUpdated={mapOverview?.lastUpdated}
-                />
-
-                <OpportunityGlobe
-                  points={mapOverview?.points || []}
-                  selectedCountryCode={selectedCountryCode}
-                  selectedRegionName={selectedRegionName}
-                  selectedMarketId={selectedMarketId}
-                  onSelectCountry={handleSelectCountry}
-                  onResetView={handleResetWorldView}
-                  isAutoRotate={isAutoRotate}
-                  onToggleAutoRotate={() => setIsAutoRotate(!isAutoRotate)}
-                  motionMode={motionMode}
-                  onMotionModeChange={handleMotionModeChange}
-                />
-              </div>
-
-              {/* Desktop Dynamic Right Intelligence Panel */}
-              <div className="hidden lg:block w-[420px] h-full border-l border-slate-800/80 bg-[#080d1a]/95 backdrop-blur-xl">
-                {/* State A: Region Selected */}
-                {selectedRegionName && regionSummary && (
-                  <RegionIntelPanel
-                    region={regionSummary}
-                    onClose={() => {
-                      setSelectedRegionName(null);
-                      setRegionSummary(null);
-                    }}
-                    onBackToCountry={() => {
-                      if (selectedCountryCode) fetchCountrySummary(selectedCountryCode);
-                    }}
-                    onSelectOpportunity={handleSelectCard}
-                    isLoading={isRegionLoading}
-                    timeWindow={timeWindow}
-                    onTimeWindowChange={setTimeWindow}
-                  />
-                )}
-
-                {/* State B: Country Selected */}
-                {selectedCountryCode && countrySummary && !selectedRegionName && (
-                  <CountryIntelPanel
-                    country={countrySummary}
-                    onClose={handleResetWorldView}
-                    onSelectOpportunity={handleSelectCard}
-                    onSelectRegion={(rName) => fetchRegionSummary(selectedCountryCode, rName)}
-                    isLoading={isCountryLoading}
-                    timeWindow={timeWindow}
-                    onTimeWindowChange={setTimeWindow}
-                  />
-                )}
-
-                {/* State C: Aggregation Market View (EU, ROW, etc.) */}
-                {!selectedCountryCode && selectedMarketId && isAggregationMarket(selectedMarketId) && (
-                  <AggregationIntelPanel
-                    market={getFocusMarket(selectedMarketId)!}
-                    mapOverview={mapOverview}
-                    opportunities={opportunities}
-                    onClose={handleResetWorldView}
-                    onSelectCountry={handleSelectCountry}
-                    onSelectOpportunity={handleSelectCard}
-                    onSelectRegion={(rName) => {
-                      if (selectedCountryCode) fetchRegionSummary(selectedCountryCode, rName);
-                    }}
-                  />
-                )}
-
-                {/* State D: Global Overview (No Selection) */}
-                {!selectedCountryCode && (!selectedMarketId || selectedMarketId === 'GLOBAL') && (
-                  <div className="h-full p-6 overflow-y-auto flex flex-col text-slate-100">
-                    <div className="flex items-center space-x-2 pb-4 border-b border-slate-800 mb-4">
-                      <Sparkles className="w-5 h-5 text-sky-400" />
-                      <div>
-                        <h2 className="text-base font-bold text-slate-100">Global Market Pulse</h2>
-                        <p className="text-xs text-slate-400">Select any country or signal node to drill down</p>
-                      </div>
-                    </div>
-
-                    {/* High Level Metrics */}
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      <div className="p-3 bg-[#060a12] border border-slate-800 rounded-xl">
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
-                          Global Signal Density
-                        </span>
-                        <span className="text-lg font-bold text-sky-400">
-                          {mapOverview?.totalGlobalSignals || 85}
-                        </span>
-                      </div>
-                      <div className="p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-xl">
-                        <span className="text-[10px] text-emerald-400 uppercase tracking-wider block mb-1">
-                          High-Viability Prospects
-                        </span>
-                        <span className="text-lg font-bold text-emerald-300">
-                          {mapOverview?.bandCounts.green || 4}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Top Active Countries */}
-                    <div className="mb-6">
-                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
-                        Top Country Hubs
-                      </h3>
-                      <div className="space-y-2">
-                        {(mapOverview?.points || []).slice(0, 5).map((pt) => {
-                          const bandMeta = getBandMetadata(pt.topOpportunityBand);
-                          return (
-                            <div
-                              key={pt.id}
-                              onClick={() => handleSelectCountry(pt.countryCode)}
-                              className="p-3 bg-[#060a12]/60 hover:bg-[#060a12] border border-slate-800/80 hover:border-sky-500/80 rounded-xl transition-all cursor-pointer flex items-center justify-between group"
-                            >
-                              <div>
-                                <div className="font-bold text-xs text-slate-200 group-hover:text-sky-400 transition-colors">
-                                  {pt.countryName} ({pt.countryCode})
-                                </div>
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  Sector: <strong className="text-slate-300 uppercase">{pt.dominantSector}</strong>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${bandMeta.bgClass} ${bandMeta.textClass} ${bandMeta.borderClass}`}>
-                                  {pt.greenCount} High
-                                </span>
-                                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all" />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Top High-Viability Opportunities */}
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
-                        Top High-Viability Signals
-                      </h3>
-                      <div className="space-y-3">
-                        {opportunities.slice(0, 3).map((opp) => (
-                          <div
-                            key={opp.id}
-                            onClick={() => handleSelectCard(opp)}
-                            className="p-3.5 bg-[#060a12]/60 hover:bg-[#060a12] border border-slate-800 hover:border-sky-500/80 rounded-xl transition-all cursor-pointer group"
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-1.5">
-                              <span className="text-xs font-bold text-slate-200 group-hover:text-sky-400 transition-colors line-clamp-1">
-                                {opp.title}
-                              </span>
-                              <span className="text-xs font-bold text-emerald-400 shrink-0">
-                                {opp.probability_score}%
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 line-clamp-2">
-                              {opp.short_description}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Lower Intelligence Section (Below the Fold) */}
-            <div className="max-w-7xl mx-auto w-full p-4 lg:p-6 space-y-6">
-              {/* Trending Sectors Bar */}
-              <TrendingSectorsBar
-                selectedSector={selectedSector}
-                onSectorChange={setSelectedSector}
+      {/* Immersive Main Stage: Full-Width World Map + AI Scout Rail + On-Demand Dossiers Drawer */}
+      <div className="flex-1 flex overflow-hidden relative z-10 min-h-[calc(100vh-220px)] bg-slate-950">
+        {activeTab === 'earth' ? (
+          <div className="w-full flex flex-col lg:flex-row overflow-hidden relative min-h-0">
+            {/* FULL-WIDTH WORLD MAP STAGE — the globe is the centerpiece, no sidebar compression */}
+            <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden border-r border-white/10 min-h-[500px] bg-black">
+              {/* World Signal Stage Overlay */}
+              <WorldSignalOverlay
+                selectedCountryCode={selectedCountryCode}
+                selectedRegionName={selectedRegionName}
+                selectedMarketId={selectedMarketId}
+                totalGlobalSignals={mapOverview?.totalGlobalSignals}
+                onSwitchToGrid={() => setActiveTab('grid')}
               />
 
-              {/* Two Column Section: Priority Market Pulse & Top Opportunity Watch */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[400px]">
-                <MarketPulseTable
-                  mapOverview={mapOverview}
-                  selectedMarketId={selectedMarketId}
-                  selectedCountryCode={selectedCountryCode}
-                  onSelectMarket={handleSelectMarket}
-                />
+              {/* Priority Focus Markets Navigation Rail */}
+              <FocusMarketNavRail
+                selectedMarketId={selectedMarketId}
+                selectedCountryCode={selectedCountryCode}
+                onSelectMarket={handleSelectMarket}
+                onResetView={handleResetWorldView}
+              />
 
-                <OpportunityWatchList
-                  opportunities={opportunities}
-                  onSelectOpportunity={handleSelectCard}
-                  isLoading={isLoading}
-                />
-              </div>
+              {/* Radar Status & Activity Overlay */}
+              <RadarActivityOverlay
+                timeWindow={timeWindow}
+                selectedMarketId={selectedMarketId}
+                selectedCountryCode={selectedCountryCode}
+                selectedRegionName={selectedRegionName}
+                granularity={regionSummary?.granularity || countrySummary?.granularity || 'country'}
+                sourceMode={mapOverview?.source}
+                lastUpdated={mapOverview?.lastUpdated}
+              />
 
-              {/* Radar Methodology & AI Disclaimer Guide */}
-              <RadarExplanatoryGuide />
+              {/* Standard World Map Globe View */}
+              <OpportunityGlobe
+                points={mapOverview?.points || []}
+                selectedCountryCode={selectedCountryCode}
+                selectedRegionName={selectedRegionName}
+                selectedMarketId={selectedMarketId}
+                onSelectCountry={handleSelectCountry}
+                onResetView={handleResetWorldView}
+                isAutoRotate={isAutoRotate}
+                onToggleAutoRotate={() => setIsAutoRotate(!isAutoRotate)}
+                motionMode={motionMode}
+                onMotionModeChange={handleMotionModeChange}
+                opportunities={opportunities}
+                onSelectOpportunity={(id) => {
+                  const opp = opportunities.find((o) => o.id === id);
+                  if (opp) {
+                    setDetailOpportunity(opp);
+                    setActiveQAOpportunity(opp);
+                    setIsDossierOpen(true);
+                  }
+                }}
+              />
             </div>
-          </div>
-        )}
 
-        {/* TAB 2: Analytical Card Grid View */}
-        {activeTab === 'grid' && (
-          <div className="flex-1 flex overflow-hidden relative">
-            <Sidebar
-              selectedBand={selectedBand}
-              onBandChange={setSelectedBand}
-              selectedSector={selectedSector}
-              onSectorChange={setSelectedSector}
-              selectedRegion={selectedRegion}
-              onRegionChange={setSelectedRegion}
-              selectedType={selectedType}
-              onTypeChange={setSelectedType}
-              selectedSort={selectedSort}
-              onSortChange={setSelectedSort}
-              onReset={handleResetFilters}
-              isOpenMobile={mobileSidebarOpen}
-            />
+            {/* RIGHT RAIL: Radar Scout AI Assistant Chatbot */}
+            <div className="hidden lg:flex w-full lg:w-[10%] xl:w-[10%] min-w-[280px] min-h-0">
+              <QAPanel
+                activeOpportunity={activeQAOpportunity}
+                onClearActiveOpportunity={() => setActiveQAOpportunity(null)}
+                isOpenMobile={mobileQAOpen}
+                onCloseMobile={() => setMobileQAOpen(false)}
+                isDocked={isQADocked}
+                onToggleDock={() => setIsQADocked(!isQADocked)}
+              />
+            </div>
+
+            {/* Floating Dossiers Toggle — glassmorphism, top-left of the immersive stage */}
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setIsDossierOpen((v) => !v)}
+              className={`absolute top-4 left-4 z-40 flex items-center space-x-2.5 rounded-2xl px-4 py-2.5 text-xs backdrop-blur-md border transition-all duration-300 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.7)] ${
+                isDossierOpen
+                  ? 'bg-emerald-500/90 border-emerald-300/50 text-slate-950'
+                  : 'glass-panel border-white/10 text-slate-100 hover:bg-white/10'
+              }`}
+              aria-expanded={isDossierOpen}
+              aria-label={isDossierOpen ? 'Hide dossiers drawer' : 'View dossiers drawer'}
+            >
+              <Layers className={`w-4 h-4 ${isDossierOpen ? 'text-slate-950' : 'text-emerald-400'}`} />
+              <span className="font-mono font-extrabold uppercase tracking-wider">
+                {isDossierOpen ? 'Hide Dossiers' : 'View Dossiers'}
+                <span className={isDossierOpen ? 'text-slate-800' : 'text-emerald-300'}> ({opportunities.length})</span>
+              </span>
+              <ChevronLeft
+                className={`w-4 h-4 transition-transform duration-300 ${
+                  isDossierOpen ? 'text-slate-950' : 'text-emerald-300 rotate-180'
+                }`}
+              />
+            </motion.button>
+
+            {/* Dossiers Slide-Over Drawer — slides out over the canvas, collapsed by default */}
+            <AnimatePresence>
+              {isDossierOpen && (
+                <>
+                  {/* Click-away scrim over the globe */}
+                  <motion.div
+                    key="dossier-scrim"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    onClick={() => setIsDossierOpen(false)}
+                    className="absolute inset-0 z-30 bg-black/50 backdrop-blur-[2px]"
+                    aria-hidden="true"
+                  />
+
+                  <motion.aside
+                    key="dossier-drawer"
+                    initial={{ x: '-100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '-100%' }}
+                    transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+                    className="absolute inset-y-0 left-0 z-30 w-[92vw] sm:w-[420px] glass-chrome backdrop-blur-md border-r border-white/10 flex flex-col overflow-hidden shadow-2xl"
+                    aria-label="Features and dossiers drawer"
+                    role="dialog"
+                  >
+                    <div className="flex items-center justify-between p-4 pb-3 border-b border-white/10">
+                          <h2 className="text-xs font-mono font-black text-emerald-300 uppercase tracking-wider flex items-center">
+                            <Sparkles className="w-4 h-4 mr-1.5 text-emerald-400" />
+                            Features & Dossiers ({opportunities.length})
+                          </h2>
+                          <button
+                            onClick={() => setIsDossierOpen(false)}
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-all"
+                            aria-label="Close dossiers drawer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                          <p className="text-xs text-slate-400 font-medium">
+                            Select any opportunity card to inspect complete feasibility, CapEx, and risk drivers — the globe stays live behind the drawer.
+                          </p>
+
+                          <div className="space-y-3">
+                            {opportunities.map((opp) => (
+                              <OpportunityCard
+                                key={opp.id}
+                                opportunity={opp}
+                                isSelected={(detailOpportunity as OpportunityResponseItem | null)?.id === opp.id}
+                                onSelect={handleSelectCard}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                    </motion.aside>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          /* TAB 2: Analytical Card Grid View */
+          <div className="flex-1 flex overflow-hidden relative w-full">
+            <div className="w-64 border-r border-white/10">
+              <Sidebar
+                selectedBand={selectedBand}
+                onBandChange={setSelectedBand}
+                selectedSector={selectedSector}
+                onSectorChange={setSelectedSector}
+                selectedRegion={selectedRegion}
+                onRegionChange={setSelectedRegion}
+                selectedType={selectedType}
+                onTypeChange={setSelectedType}
+                selectedSort={selectedSort}
+                onSortChange={setSelectedSort}
+                onReset={handleResetFilters}
+                isOpenMobile={mobileSidebarOpen}
+              />
+            </div>
 
             <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-slate-950">
               <div className="max-w-7xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center">
-                      <Layers className="w-4 h-4 mr-2 text-sky-400" />
-                      Analytical Opportunity Signals ({opportunities.length})
+                    <h2 className="text-base font-black text-slate-100 uppercase tracking-wider flex items-center">
+                      <Sparkles className="w-4 h-4 mr-2 text-emerald-400" />
+                      Analytical Signals ({opportunities.length})
                     </h2>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-400 mt-0.5 font-medium">
                       Multi-parameter filtering engine for business, innovation, & investment prospects.
                     </p>
                   </div>
                 </div>
 
                 {isLoading && (
-                  <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center">
-                    <RefreshCw className="w-8 h-8 text-sky-400 animate-spin mb-3" />
-                    <p className="text-sm font-medium">Computing Opportunity Scores...</p>
+                  <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center font-mono">
+                    <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mb-3" />
+                    <p className="text-sm font-bold text-slate-200">Computing Opportunity Scores...</p>
                   </div>
                 )}
 
                 {error && !isLoading && (
-                  <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs mb-6">
+                  <div className="p-4 rounded-2xl bg-rose-500/10 ring-1 ring-rose-500/40 text-rose-300 text-xs mb-6">
                     <strong className="font-bold">Error loading radar signals:</strong> {error}
                   </div>
                 )}
@@ -609,111 +580,60 @@ export default function DashboardPage() {
                     </AnimatePresence>
                   </motion.div>
                 )}
-
-                {!isLoading && !error && opportunities.length === 0 && (
-                  <div className="p-8 panel-surface text-center flex flex-col items-center justify-center max-w-md mx-auto my-12">
-                    <div className="p-3 bg-amber-950/60 border border-amber-800/80 rounded-2xl text-amber-400 mb-3">
-                      <X className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider mb-1">
-                      No verified opportunities match active filters
-                    </h3>
-                    <p className="text-xs text-slate-400 mb-4">
-                      Try broadening your search query, sector selection, or viability band criteria.
-                    </p>
-                    <button
-                      onClick={handleResetFilters}
-                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
-                    >
-                      Reset All Filters
-                    </button>
-                  </div>
-                )}
               </div>
             </main>
           </div>
         )}
-
-        {/* Co-Pilot AI Q&A Panel */}
-        <QAPanel
-          activeOpportunity={activeQAOpportunity}
-          onClearActiveOpportunity={() => setActiveQAOpportunity(null)}
-          isOpenMobile={mobileQAOpen}
-          onCloseMobile={() => setMobileQAOpen(false)}
-        />
       </div>
 
-      {/* Mobile Intelligence Bottom Sheet / Drawer */}
-      <AnimatePresence>
-        {mobileIntelOpen && (selectedCountryCode || selectedRegionName || (selectedMarketId && isAggregationMarket(selectedMarketId))) && (
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-            className="fixed inset-x-0 bottom-0 top-16 z-50 lg:hidden bg-slate-900/98 backdrop-blur-2xl border-t border-slate-800 flex flex-col shadow-2xl"
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Location & Market Intelligence
-              </span>
-              <button
-                onClick={() => setMobileIntelOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                aria-label="Close Mobile Intelligence Sheet"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {selectedRegionName && regionSummary ? (
-                <RegionIntelPanel
-                  region={regionSummary}
-                  onClose={() => setMobileIntelOpen(false)}
-                  onBackToCountry={() => {
-                    if (selectedCountryCode) fetchCountrySummary(selectedCountryCode);
-                  }}
-                  onSelectOpportunity={handleSelectCard}
-                  isLoading={isRegionLoading}
-                  timeWindow={timeWindow}
-                  onTimeWindowChange={setTimeWindow}
-                />
-              ) : selectedCountryCode && countrySummary ? (
-                <CountryIntelPanel
-                  country={countrySummary}
-                  onClose={() => setMobileIntelOpen(false)}
-                  onSelectOpportunity={handleSelectCard}
-                  onSelectRegion={(rName) => fetchRegionSummary(selectedCountryCode, rName)}
-                  isLoading={isCountryLoading}
-                  timeWindow={timeWindow}
-                  onTimeWindowChange={setTimeWindow}
-                />
-              ) : selectedMarketId && isAggregationMarket(selectedMarketId) ? (
-                <AggregationIntelPanel
-                  market={getFocusMarket(selectedMarketId)!}
-                  mapOverview={mapOverview}
-                  opportunities={opportunities}
-                  onClose={() => setMobileIntelOpen(false)}
-                  onSelectCountry={handleSelectCountry}
-                  onSelectOpportunity={handleSelectCard}
-                  onSelectRegion={(rName) => {
-                    if (selectedCountryCode) fetchRegionSummary(selectedCountryCode, rName);
-                  }}
-                />
-              ) : null}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Lower Dashboard Content Below the Stage */}
+      <div className="max-w-7xl mx-auto w-full p-4 lg:p-6 space-y-6 bg-slate-950 relative z-10 border-t border-white/10">
+        <TrendingSectorsBar
+          selectedSector={selectedSector}
+          onSectorChange={setSelectedSector}
+        />
 
-      {/* Detail Drawer */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[400px]">
+          <MarketPulseTable
+            mapOverview={mapOverview}
+            selectedMarketId={selectedMarketId}
+            selectedCountryCode={selectedCountryCode}
+            onSelectMarket={handleSelectMarket}
+          />
+
+          <OpportunityWatchList
+            opportunities={opportunities}
+            onSelectOpportunity={handleSelectCard}
+            isLoading={isLoading}
+            selectedSector={selectedSector}
+            selectedMarket={selectedMarketId}
+          />
+        </div>
+
+        <RadarExplanatoryGuide />
+      </div>
+
+      {/* Signal Dossier — self-anchored fixed right sheet. Lives at the page-tree
+          bottom, outside every grid/layout container, so no transformed or
+          overflow-clipping ancestor can trap or clip it. */}
       <OpportunityDetailDrawer
         opportunity={detailOpportunity}
+        isOpen={detailOpportunity !== null}
         onClose={() => setDetailOpportunity(null)}
         onSelectForQA={(opp) => {
           setActiveQAOpportunity(opp);
           setMobileQAOpen(true);
         }}
+      />
+
+      {/* Global Command Palette — keyboard-first (⌘K) search overlay. Mounted
+          at the page-tree root: fixed positioning, above the Header (z-40)
+          with no transformed or overflow-clipping ancestor to trap it. */}
+      <CommandPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onSelectOpportunity={(opp) => handleSelectCard(opp as OpportunityResponseItem)}
+        opportunities={opportunities}
       />
 
       {/* Footer */}
