@@ -16,6 +16,11 @@ export const OpportunityGlobe: React.FC<GlobeProps> = ({
   onToggleAutoRotate,
   motionMode,
   onMotionModeChange,
+  globeImageUrl = 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg',
+  bumpImageUrl = 'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png',
+  opportunities,
+  onSelectOpportunity,
+  focusTarget,
 }) => {
   const [hasWebGlSupport, setHasWebGlSupport] = useState<boolean>(true);
 
@@ -56,6 +61,11 @@ export const OpportunityGlobe: React.FC<GlobeProps> = ({
       onToggleAutoRotate={onToggleAutoRotate}
       motionMode={motionMode}
       onMotionModeChange={onMotionModeChange}
+      globeImageUrl={globeImageUrl}
+      bumpImageUrl={bumpImageUrl}
+      opportunities={opportunities}
+      onSelectOpportunity={onSelectOpportunity}
+      focusTarget={focusTarget}
     />
   );
 };

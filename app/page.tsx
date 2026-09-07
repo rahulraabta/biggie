@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Header } from '@/components/layout/Header';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { HeroStrip } from '@/components/layout/HeroStrip';
@@ -27,7 +27,7 @@ import { MapOverviewResponse, CountryIntelligenceSummary, RegionalIntelligenceSu
 import { OpportunityResponseItem } from '@/app/api/opportunities/route';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, Layers, Sparkles, RefreshCw, ShieldCheck, ArrowRight, BarChart2, X, Compass, Filter, Bot, ChevronLeft } from 'lucide-react';
-import { getBandMetadata } from '@/src/utils/geoUtils';
+import { getBandMetadata, getPinCoordinates } from '@/src/utils/geoUtils';
 import { MotionMode, getSystemPreferredMotionMode, saveMotionModePreference } from '@/components/globe/motionConfig';
 
 export default function DashboardPage() {
@@ -97,6 +97,19 @@ export default function DashboardPage() {
   // Selected Opportunity for 30% Features Pane Inspector & AI Q&A Context
   const [detailOpportunity, setDetailOpportunity] = useState<OpportunityResponseItem | null>(null);
   const [activeQAOpportunity, setActiveQAOpportunity] = useState<OpportunityResponseItem | null>(null);
+
+  // Globe focus lock: while a dossier is open, the camera tweens toward the
+  // opportunity's coordinates — its own pin lat/lng when present, otherwise
+  // the capital/centroid anchor for its region code.
+  const globeFocusTarget = useMemo(() => {
+    if (!detailOpportunity) return null;
+    if (typeof detailOpportunity.latitude === 'number' && typeof detailOpportunity.longitude === 'number') {
+      return { lat: detailOpportunity.latitude, lng: detailOpportunity.longitude };
+    }
+    const region = detailOpportunity.region || detailOpportunity.primary_region || 'GLOBAL';
+    const geo = getPinCoordinates(region);
+    return { lat: geo.lat, lng: geo.lng };
+  }, [detailOpportunity]);
 
   // Mobile drawer toggles
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
@@ -418,6 +431,7 @@ export default function DashboardPage() {
                     setIsDossierOpen(true);
                   }
                 }}
+                focusTarget={globeFocusTarget}
               />
             </div>
 
