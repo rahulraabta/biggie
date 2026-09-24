@@ -1,0 +1,405 @@
+
+> news-to-opportunities@1.0.0 dev
+> next dev
+
+▲ Next.js 16.3.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.29.97:3000
+- Environments: .env.local, .env
+✓ Ready in 8.4s
+⚠ Warning: Next.js ignored package-lock.json in C:\Users\INTEL because it is outside the current Git repository (C:\Users\INTEL\Desktop\biggie).
+ To use this directory, set `turbopack.root` in your Next.js config.
+
+✓ Running next.config.mjs took 70ms
+
+○ Compiling / ...
+ GET / 200 in 12.8s (next.js: 12.1s, application-code: 694ms)
+ GET / 200 in 201ms (next.js: 82ms, application-code: 119ms)
+ GET / 200 in 118ms (next.js: 9ms, application-code: 109ms)
+ GET / 200 in 117ms (next.js: 6ms, application-code: 111ms)
+ GET / 200 in 1161ms (next.js: 372ms, application-code: 789ms)
+ GET / 200 in 330ms (next.js: 18ms, application-code: 312ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET /api/map/overview 200 in 6.6s (next.js: 5.7s, application-code: 867ms)
+ GET /api/opportunities?sort=highest_probability 200 in 6.6s (next.js: 921ms, application-code: 5.7s)
+ GET /api/map/overview 200 in 107ms (next.js: 22ms, application-code: 85ms)
+ GET /api/opportunities?sort=highest_probability 200 in 114ms (next.js: 66ms, application-code: 48ms)
+✓ Compiled in 734ms
+ GET / 200 in 195ms (next.js: 81ms, application-code: 114ms)
+✓ Compiled in 389ms
+ GET / 200 in 484ms (next.js: 166ms, application-code: 318ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+✓ Compiled in 730ms
+ GET / 200 in 189ms (next.js: 56ms, application-code: 133ms)
+ GET /api/opportunities?sort=highest_probability 200 in 385ms (next.js: 16ms, application-code: 369ms)
+ GET /api/map/overview 200 in 490ms (next.js: 17ms, application-code: 474ms)
+ GET /api/opportunities?sort=highest_probability 200 in 198ms (next.js: 50ms, application-code: 148ms)
+ GET /api/map/overview 200 in 203ms (next.js: 79ms, application-code: 124ms)
+✓ Compiled in 309ms
+ GET / 200 in 99ms (next.js: 33ms, application-code: 66ms)
+ GET /api/map/overview 200 in 50ms (next.js: 8ms, application-code: 42ms)
+ GET /api/opportunities?sort=highest_probability 200 in 56ms (next.js: 27ms, application-code: 30ms)
+✓ Compiled in 796ms
+ GET / 200 in 165ms (next.js: 53ms, application-code: 113ms)
+ GET /api/map/overview 200 in 75ms (next.js: 17ms, application-code: 59ms)
+ GET /api/opportunities?sort=highest_probability 200 in 83ms (next.js: 38ms, application-code: 45ms)
+✓ Compiled in 541ms
+ GET / 200 in 95ms (next.js: 28ms, application-code: 67ms)
+ GET /api/map/overview 200 in 137ms (next.js: 9ms, application-code: 129ms)
+ GET /api/opportunities?sort=highest_probability 200 in 247ms (next.js: 27ms, application-code: 220ms)
+✓ Compiled in 456ms
+✓ Compiled in 296ms
+[browser] ./components/map/FocusMarketNavRail.tsx:150:7
+Error: Expected '</', got '{'
+  148 |       </motion.div>
+  149 |
+> 150 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+      |       ^
+  151 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+  152 |         <button
+  153 |           onClick={() => onSelectMarket(null)}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+✓ Compiled in 308ms
+✓ Compiled in 282ms
+✓ Compiled in 858ms
+✓ Compiled in 1245ms
+ GET / 200 in 903ms (next.js: 404ms, application-code: 499ms)
+ GET / 200 in 978ms (next.js: 233ms, application-code: 745ms)
+ GET / 200 in 351ms (next.js: 23ms, application-code: 328ms)
+[browser] ./components/globe/GlobeControls.tsx:146:1
+Error: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  144 |     </div>
+  145 |   );
+> 146 | };
+      | ^
+  147 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/globe/GlobeControls.tsx [Client Component Browser]
+    ./components/globe/OpportunityEarthGlobeAdapter.tsx [Client Component Browser]
+    ./components/globe/OpportunityGlobe.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/globe/GlobeControls.tsx [Client Component SSR]
+    ./components/globe/OpportunityEarthGlobeAdapter.tsx [Client Component SSR]
+    ./components/globe/OpportunityGlobe.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/globe/GlobeControls.tsx:146:1
+Error: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  144 |     </div>
+  145 |   );
+> 146 | };
+      | ^
+  147 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/globe/GlobeControls.tsx [Client Component Browser]
+    ./components/globe/OpportunityEarthGlobeAdapter.tsx [Client Component Browser]
+    ./components/globe/OpportunityGlobe.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/globe/GlobeControls.tsx [Client Component SSR]
+    ./components/globe/OpportunityEarthGlobeAdapter.tsx [Client Component SSR]
+    ./components/globe/OpportunityGlobe.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+[browser] ./components/map/FocusMarketNavRail.tsx:149:10
+Error: Unterminated regexp literal
+  147 |         </div>
+  148 |           </motion.div>
+> 149 |         </AnimatePresence>
+      |          ^^^^^^^^^^^^^^^^^
+  150 |
+  151 |       {/* Mobile Horizontally Scrollable Field Atlas Chips (Top Overlay) */}
+  152 |       <div className="xl:hidden flex items-center space-x-2 overflow-x-auto px-4 py-2.5 g...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./components/map/FocusMarketNavRail.tsx [Client Component Browser]
+    ./app/page.tsx [Client Component Browser]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/map/FocusMarketNavRail.tsx [Client Component SSR]
+    ./app/page.tsx [Client Component SSR]
+    ./app/page.tsx [Server Component] 
+ GET / 200 in 382ms (next.js: 29ms, application-code: 353ms)
+ GET /api/map/overview 200 in 314ms (next.js: 33ms, application-code: 281ms)
+ GET /api/opportunities?sort=highest_probability 200 in 237ms (next.js: 20ms, application-code: 217ms)
+ GET /api/map/overview 200 in 50ms (next.js: 12ms, application-code: 37ms)
+ GET /api/opportunities?sort=highest_probability 200 in 56ms (next.js: 31ms, application-code: 25ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+✓ Compiled in 2.8s
+ GET / 200 in 810ms (next.js: 394ms, application-code: 416ms)
+✓ Compiled in 3.3s
+ GET / 200 in 353ms (next.js: 116ms, application-code: 237ms)
+✓ Compiled in 2s
+ GET / 200 in 609ms (next.js: 213ms, application-code: 396ms)
+✓ Compiled in 343ms
+ GET / 200 in 72ms (next.js: 22ms, application-code: 50ms)
+ GET /api/map/overview 200 in 233ms (next.js: 46ms, application-code: 187ms)
+ GET /api/opportunities?sort=highest_probability 200 in 244ms (next.js: 11ms, application-code: 233ms)
+✓ Compiled in 226ms
+ GET / 200 in 150ms (next.js: 40ms, application-code: 110ms)
+ GET /api/map/overview 200 in 258ms (next.js: 19ms, application-code: 240ms)
+ GET /api/opportunities?sort=highest_probability 200 in 339ms (next.js: 14ms, application-code: 324ms)
+✓ Compiled in 2.2s
+ GET / 200 in 295ms (next.js: 110ms, application-code: 185ms)
+ GET /api/map/overview 200 in 372ms (next.js: 45ms, application-code: 328ms)
+ GET /api/opportunities?sort=highest_probability 200 in 442ms (next.js: 55ms, application-code: 388ms)
+ GET / 200 in 440ms (next.js: 85ms, application-code: 355ms)
+ GET / 200 in 307ms (next.js: 16ms, application-code: 291ms)
+ GET / 200 in 313ms (next.js: 18ms, application-code: 295ms)
+ GET / 200 in 384ms (next.js: 177ms, application-code: 207ms)
+ GET /api/map/overview 200 in 492ms (next.js: 28ms, application-code: 464ms)
+ GET /api/opportunities?sort=highest_probability 200 in 515ms (next.js: 67ms, application-code: 448ms)
+ GET /api/map/overview 200 in 91ms (next.js: 15ms, application-code: 76ms)
+ GET /api/opportunities?sort=highest_probability 200 in 61ms (next.js: 17ms, application-code: 45ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET /api/map/country?code=IN 200 in 579ms (next.js: 247ms, application-code: 332ms)
+ GET /api/map/country?code=US 200 in 57ms (next.js: 17ms, application-code: 40ms)
+ GET /api/map/country?code=IN 200 in 309ms (next.js: 25ms, application-code: 284ms)
+ GET /api/map/country?code=US 200 in 50ms (next.js: 15ms, application-code: 34ms)
+ GET /api/map/country?code=IN 200 in 63ms (next.js: 15ms, application-code: 48ms)
+✓ Compiled in 2.4s
+ GET / 200 in 983ms (next.js: 277ms, application-code: 706ms)
+ GET /api/opportunities?sort=highest_probability 200 in 822ms (next.js: 344ms, application-code: 478ms)
+  Reload env: .env
+ GET / 200 in 7.1s (next.js: 1949ms, application-code: 5.2s)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET /api/map/overview 200 in 2.2s (next.js: 994ms, application-code: 1224ms)
+ GET /api/opportunities?sort=highest_probability 200 in 2.2s (next.js: 1616ms, application-code: 611ms)
+ GET /api/map/overview 200 in 133ms (next.js: 24ms, application-code: 109ms)
+ GET /api/opportunities?sort=highest_probability 200 in 147ms (next.js: 76ms, application-code: 71ms)
+ GET /api/map/country?code=CA 200 in 287ms (next.js: 167ms, application-code: 120ms)
+ GET /api/map/country?code=IN 200 in 61ms (next.js: 13ms, application-code: 48ms)
+ GET /api/map/country?code=IN 200 in 60ms (next.js: 11ms, application-code: 49ms)
+ GET /api/map/country?code=IQ 200 in 102ms (next.js: 18ms, application-code: 84ms)
+ GET /api/map/country?code=US 200 in 67ms (next.js: 20ms, application-code: 47ms)
+ GET /api/map/country?code=US 200 in 80ms (next.js: 31ms, application-code: 50ms)
+ GET /api/map/overview 200 in 77ms (next.js: 13ms, application-code: 64ms)
+ GET /api/opportunities?sector=energy&sort=highest_probability 200 in 285ms (next.js: 47ms, application-code: 239ms)
+ GET /api/map/country?code=IN 200 in 55ms (next.js: 14ms, application-code: 41ms)
+ GET /api/map/country?code=US 200 in 64ms (next.js: 21ms, application-code: 43ms)
+ GET /api/map/country?code=IN 200 in 51ms (next.js: 14ms, application-code: 36ms)
+ GET / 200 in 2.3s (next.js: 489ms, application-code: 1823ms)
+ GET /api/map/overview 200 in 438ms (next.js: 25ms, application-code: 414ms)
+ GET /api/opportunities?sort=highest_probability 200 in 456ms (next.js: 71ms, application-code: 386ms)
+ GET /api/map/overview 200 in 113ms (next.js: 23ms, application-code: 90ms)
+ GET /api/opportunities?sort=highest_probability 200 in 143ms (next.js: 61ms, application-code: 82ms)
+[browser] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+ GET /api/map/country?code=FR 200 in 77ms (next.js: 21ms, application-code: 56ms)
+ GET /api/opportunities 200 in 351ms (next.js: 45ms, application-code: 306ms)
+✓ Compiled in 1577ms
+ GET / 200 in 381ms (next.js: 155ms, application-code: 227ms)
+ GET / 200 in 946ms (next.js: 155ms, application-code: 791ms)
+ GET /api/map/country?code=GB 200 in 199ms (next.js: 37ms, application-code: 162ms)
+ GET /api/map/country?code=US 200 in 230ms (next.js: 12ms, application-code: 218ms)
+ GET /api/map/country?code=GB 200 in 50ms (next.js: 11ms, application-code: 39ms)
+ GET /api/map/country?code=IN 200 in 45ms (next.js: 10ms, application-code: 35ms)
+ GET /api/opportunities 200 in 378ms (next.js: 55ms, application-code: 324ms)
+ GET / 200 in 349ms (next.js: 80ms, application-code: 270ms)
+ GET /api/opportunities 200 in 134ms (next.js: 19ms, application-code: 115ms)

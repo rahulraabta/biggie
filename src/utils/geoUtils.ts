@@ -1,5 +1,3 @@
-import { GeoLocation } from '../types/mapTypes';
-
 export interface CountryGeoData {
   name: string;
   lat: number;
@@ -28,6 +26,8 @@ export const COUNTRY_COORDINATES: Record<string, CountryGeoData> = {
   SE: { name: 'Sweden', lat: 60.1282, lng: 18.6435 },
   CH: { name: 'Switzerland', lat: 46.8182, lng: 8.2275 },
   EU: { name: 'European Union', lat: 50.8503, lng: 4.3517 },
+  NP: { name: 'Nepal', lat: 28.3949, lng: 84.124 },
+  PK: { name: 'Pakistan', lat: 30.3753, lng: 69.3451 },
   GLOBAL: { name: 'Global Markets', lat: 25.0, lng: 10.0 },
 };
 
@@ -37,6 +37,97 @@ export function getCountryCoordinates(code: string): CountryGeoData {
     name: code || 'Unknown Region',
     lat: 20.0,
     lng: 0.0,
+  };
+}
+
+/**
+ * Capital-city anchor coordinates for priority market pins. Used as the default
+ * fallback when an article / opportunity lacks exact geo-coordinates.
+ */
+export const CAPITAL_COORDINATES: Record<string, CountryGeoData> = {
+  IN: { name: 'India (New Delhi)', lat: 28.61, lng: 77.20 },
+  US: { name: 'United States (Washington DC)', lat: 38.9, lng: -77.03 },
+  CN: { name: 'China (Beijing)', lat: 39.9, lng: 116.4 },
+  JP: { name: 'Japan (Tokyo)', lat: 35.67, lng: 139.65 },
+};
+
+/**
+ * Pin placement coordinates: prefers the national capital anchor for the four
+ * priority markets (IN / US / CN / JP), otherwise the country centroid.
+ */
+export function getPinCoordinates(code: string): CountryGeoData {
+  const normalized = (code || 'GLOBAL').toUpperCase();
+  return CAPITAL_COORDINATES[normalized] || getCountryCoordinates(normalized);
+}
+
+/**
+ * GDELT emits FIPS 10-4 country codes, which diverge from ISO 3166-1 for several
+ * markets (China = CH, Japan = JA, Germany = GM, UK = UK). Maps them to the ISO
+ * codes used across this codebase; unknown/empty values pass through uppercased
+ * (or 'GLOBAL' when empty) so downstream filters never silently drop events.
+ */
+const FIPS_TO_ISO: Record<string, string> = {
+  CH: 'CN', // FIPS China
+  JA: 'JP', // FIPS Japan
+  GM: 'DE', // FIPS Germany
+  UK: 'GB', // FIPS United Kingdom
+  KS: 'KR', // FIPS South Korea
+  SW: 'SE', // FIPS Sweden
+  SF: 'ZA', // FIPS South Africa
+  SP: 'ES', // FIPS Spain
+  SN: 'SG', // FIPS Singapore
+  SZ: 'CH', // FIPS Switzerland (ISO CH)
+  AS: 'AU', // FIPS Australia
+  AU: 'AT', // FIPS Austria
+  BM: 'MM', // FIPS Burma
+  BU: 'BG', // FIPS Bulgaria
+  CB: 'KH', // FIPS Cambodia
+  DA: 'DK', // FIPS Denmark
+  EI: 'IE', // FIPS Ireland
+  EN: 'EE', // FIPS Estonia
+  EZ: 'CZ', // FIPS Czechia
+  IZ: 'IQ', // FIPS Iraq
+  OD: 'SS', // FIPS South Sudan
+  UP: 'UA', // FIPS Ukraine
+  VM: 'VN', // FIPS Vietnam
+  WE: 'PS', // FIPS West Bank
+  ZI: 'ZW', // FIPS Zimbabwe
+};
+
+export function normalizeCountryCode(raw: string | null | undefined): string {
+  const code = (raw || '').trim().toUpperCase();
+  if (!code) return 'GLOBAL';
+  return FIPS_TO_ISO[code] || code;
+}
+
+/**
+ * Wraps an angle in radians into (-π, π] so rotation lerps always travel the short way.
+ */
+export function normalizeAngleRad(angle: number): number {
+  const TAU = Math.PI * 2;
+  return ((((angle % TAU) + TAU) % TAU) + Math.PI) % TAU - Math.PI;
+}
+
+/**
+ * Returns an angle equivalent to `currentAngle` (mod 2π) positioned on the
+ * shortest arc toward `targetAngle`.
+ */
+export function shortestArcTo(currentAngle: number, targetAngle: number): number {
+  return currentAngle + normalizeAngleRad(targetAngle - currentAngle);
+}
+
+/**
+ * Globe-group rotation that brings the lat/lng marker defined by the
+ * `latLngToVector3` convention (theta = (lng + 180)°, x = -sinφ·cosθ) to face
+ * the camera sitting on the +Z axis:
+ *   rotation.x = lat (rad)  — lifts the marker's parallel onto the equatorial plane
+ *   rotation.y = -(lng + 90)° (rad, wrapped) — swings the marker's meridian onto the camera meridian
+ * Verified for India { lat: 20.5937, lng: 78.9629 } → { x: 0.3594, y: -2.9492 }.
+ */
+export function latLngToGlobeRotation(lat: number, lng: number): { x: number; y: number } {
+  return {
+    x: lat * (Math.PI / 180),
+    y: normalizeAngleRad(-(lng + 90) * (Math.PI / 180)),
   };
 }
 

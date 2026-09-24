@@ -3,6 +3,7 @@
 import React from 'react';
 import { Activity, Globe, Sparkles, ShieldCheck, AlertTriangle, ShieldAlert, Radio } from 'lucide-react';
 import { MapOverviewResponse } from '@/src/types/mapTypes';
+import { motion } from 'framer-motion';
 
 interface CommandMetricsRowProps {
   mapOverview: MapOverviewResponse | null;
@@ -24,11 +25,11 @@ export const CommandMetricsRow: React.FC<CommandMetricsRowProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-[#040711] border-b border-slate-800/80 px-4 lg:px-8 py-2">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 text-xs font-mono tracking-wider animate-pulse text-slate-500">
-          <span className="flex items-center space-x-2">
-            <Radio className="w-3.5 h-3.5 text-sky-400 animate-spin" />
-            <span>SYNCHRONIZING ORBITAL FIELD TELEMETRY...</span>
+      <div className="glass-chrome border-b border-white/10 px-4 lg:px-8 py-2">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 text-xs font-mono tracking-wider animate-pulse text-emerald-300">
+          <span className="flex items-center space-x-2 font-bold">
+            <Radio className="w-4 h-4 text-emerald-400 animate-spin" />
+            <span>SYNCHRONIZING GLOBAL SIGNAL TELEMETRY...</span>
           </span>
         </div>
       </div>
@@ -36,49 +37,67 @@ export const CommandMetricsRow: React.FC<CommandMetricsRowProps> = ({
   }
 
   return (
-    <div className="bg-[#040711] border-b border-slate-800/80 px-4 lg:px-8 py-2">
-      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs font-mono">
+    <div className="glass-chrome border-b border-white/10 px-4 lg:px-8 py-2 relative z-10">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs font-mono">
         {/* Signal Metric 1: Total Signals */}
-        <div className="flex items-center space-x-2 bg-slate-900/60 border border-slate-800/90 rounded-md px-2.5 py-1">
-          <Activity className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-          <span className="text-slate-400 uppercase tracking-wider text-[10px]">Signals:</span>
-          <span className="font-bold text-slate-100 tabular-nums">{totalSignals}</span>
-        </div>
+        <motion.div
+          whileHover={{ scale: 1.04, y: -1 }}
+          className="flex items-center space-x-2 bg-white/5 ring-1 ring-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md cursor-pointer transition-colors duration-300 hover:bg-white/10"
+        >
+          <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+          <span className="text-slate-400 uppercase tracking-wider text-[10px] font-bold">Signals:</span>
+          <span className="font-extrabold text-emerald-300 tabular-nums text-sm">{totalSignals}</span>
+        </motion.div>
 
         {/* Signal Metric 2: Active Markets */}
-        <div className="flex items-center space-x-2 bg-slate-900/60 border border-slate-800/90 rounded-md px-2.5 py-1">
-          <Globe className="w-3.5 h-3.5 text-sky-400" />
-          <span className="text-slate-400 uppercase tracking-wider text-[10px]">Active Hubs:</span>
-          <span className="font-bold text-slate-100 tabular-nums">{activeCountries}</span>
-        </div>
+        <motion.div
+          whileHover={{ scale: 1.04, y: -1 }}
+          className="flex items-center space-x-2 bg-white/5 ring-1 ring-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md cursor-pointer transition-colors duration-300 hover:bg-white/10"
+        >
+          <Globe className="w-4 h-4 text-emerald-400 animate-spin" style={{ animationDuration: '20s' }} />
+          <span className="text-slate-400 uppercase tracking-wider text-[10px] font-bold">Active Hubs:</span>
+          <span className="font-extrabold text-white tabular-nums text-sm">{activeCountries}</span>
+        </motion.div>
 
         {/* Signal Metric 3: Total Opportunities */}
-        <div className="flex items-center space-x-2 bg-slate-900/60 border border-slate-800/90 rounded-md px-2.5 py-1">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-slate-400 uppercase tracking-wider text-[10px]">Opportunities:</span>
-          <span className="font-bold text-amber-400 tabular-nums">{totalOpps}</span>
-        </div>
+        <motion.div
+          whileHover={{ scale: 1.04, y: -1 }}
+          className="flex items-center space-x-2 bg-amber-500/10 ring-1 ring-amber-500/30 rounded-xl px-3 py-1.5 backdrop-blur-md cursor-pointer transition-colors duration-300 hover:bg-amber-500/15"
+        >
+          <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+          <span className="text-amber-300/80 uppercase tracking-wider text-[10px] font-bold">Opportunities:</span>
+          <span className="font-extrabold text-amber-300 tabular-nums text-sm">{totalOpps}</span>
+        </motion.div>
 
         {/* Signal Metric 4: High Viability Band */}
-        <div className="flex items-center space-x-2 bg-emerald-950/40 border border-emerald-800/60 rounded-md px-2.5 py-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-emerald-300/80 uppercase tracking-wider text-[10px]">High (71-100%):</span>
-          <span className="font-bold text-emerald-400 tabular-nums">{greenCount}</span>
-        </div>
+        <motion.div
+          whileHover={{ scale: 1.04, y: -1 }}
+          className="flex items-center space-x-2 bg-emerald-500/10 ring-1 ring-emerald-500/30 rounded-xl px-3 py-1.5 backdrop-blur-md cursor-pointer transition-colors duration-300 hover:bg-emerald-500/15"
+        >
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span className="text-emerald-300/80 uppercase tracking-wider text-[10px] font-bold">High (71-100%):</span>
+          <span className="font-extrabold text-emerald-300 tabular-nums text-sm">{greenCount}</span>
+        </motion.div>
 
         {/* Signal Metric 5: Medium Viability Band */}
-        <div className="flex items-center space-x-2 bg-amber-950/40 border border-amber-800/60 rounded-md px-2.5 py-1">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-amber-300/80 uppercase tracking-wider text-[10px]">Medium (41-70%):</span>
-          <span className="font-bold text-amber-400 tabular-nums">{orangeCount}</span>
-        </div>
+        <motion.div
+          whileHover={{ scale: 1.04, y: -1 }}
+          className="flex items-center space-x-2 bg-amber-500/10 ring-1 ring-amber-500/30 rounded-xl px-3 py-1.5 backdrop-blur-md cursor-pointer transition-colors duration-300 hover:bg-amber-500/15"
+        >
+          <AlertTriangle className="w-4 h-4 text-amber-400" />
+          <span className="text-amber-300/80 uppercase tracking-wider text-[10px] font-bold">Medium (41-70%):</span>
+          <span className="font-extrabold text-amber-300 tabular-nums text-sm">{orangeCount}</span>
+        </motion.div>
 
         {/* Signal Metric 6: Low Viability Band */}
-        <div className="flex items-center space-x-2 bg-rose-950/40 border border-rose-800/60 rounded-md px-2.5 py-1">
-          <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-          <span className="text-rose-300/80 uppercase tracking-wider text-[10px]">Low (0-40%):</span>
-          <span className="font-bold text-rose-400 tabular-nums">{redCount}</span>
-        </div>
+        <motion.div
+          whileHover={{ scale: 1.04, y: -1 }}
+          className="flex items-center space-x-2 bg-rose-500/10 ring-1 ring-rose-500/30 rounded-xl px-3 py-1.5 backdrop-blur-md cursor-pointer transition-colors duration-300 hover:bg-rose-500/15"
+        >
+          <ShieldAlert className="w-4 h-4 text-rose-400" />
+          <span className="text-rose-300/80 uppercase tracking-wider text-[10px] font-bold">Low (0-40%):</span>
+          <span className="font-extrabold text-rose-300 tabular-nums text-sm">{redCount}</span>
+        </motion.div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Header } from '@/components/layout/Header';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { SmartMemoExport } from '@/components/ui/SmartMemoExport';
 import { HeroStrip } from '@/components/layout/HeroStrip';
 import { CommandMetricsRow } from '@/components/layout/CommandMetricsRow';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -368,11 +369,12 @@ export default function DashboardPage() {
           </motion.button>
         </div>
 
-        {/* Layout Split Ratio Badge */}
-        <div className="hidden md:flex items-center space-x-3 text-xs font-mono">
-          <span className="text-slate-400 font-bold">
+        {/* Layout Split Ratio Badge + Smart Memo Export */}
+        <div className="flex items-center space-x-3 text-xs font-mono">
+          <span className="hidden md:inline text-slate-400 font-bold">
             Immersive Stage: <strong className="text-emerald-300">Full-Width 3D Earth | Dossiers & Atlas on Demand</strong>
           </span>
+          <SmartMemoExport />
         </div>
       </div>
 

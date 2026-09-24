@@ -18,12 +18,27 @@ import {
   Share2,
   Check,
   Link2,
-  Gauge,
-  Skull,
   TrendingUp,
+  AlertOctagon,
+  Brain,
+  ChevronDown,
 } from 'lucide-react';
 import { OpportunityResponseItem } from '@/app/api/opportunities/route';
 import { getBandMetadata } from '@/src/utils/geoUtils';
+
+interface SynergyOpportunity {
+  id: number;
+  title: string;
+  type?: string;
+  band?: string;
+  short_description?: string | null;
+  dominant_sector?: string | null;
+  primary_region?: string | null;
+  vector_similarity?: number;
+  probability_score?: number;
+  sector?: string;
+  region?: string;
+}
 
 interface OpportunityDetailDrawerProps {
   opportunity: OpportunityResponseItem | null;
@@ -52,6 +67,49 @@ const SCORE_WEIGHTS = {
   timingVelocity: 0.2,
   executionRisk: 0.2,
 } as const;
+
+// --- What-If Macro Stress Test Scenarios ---
+export type MacroScenario = 'regulatory_crackdown' | 'supply_chain_shock' | 'interest_rate_cut';
+
+export interface ScenarioDefinition {
+  id: MacroScenario;
+  label: string;
+  description: string;
+  modifiers: {
+    feasibility?: number;     // e.g. -15
+    marketImpact?: number;    // e.g. +10
+    timingVelocity?: number;  // e.g. -25
+    executionRisk?: number;   // e.g. +20
+  };
+}
+
+export const MACRO_SCENARIOS: ScenarioDefinition[] = [
+  {
+    id: 'regulatory_crackdown',
+    label: 'Regulatory Crackdown',
+    description: 'Tighter compliance and licensing bottlenecks drop execution velocity by 25%.',
+    modifiers: {
+      timingVelocity: -25,
+    },
+  },
+  {
+    id: 'supply_chain_shock',
+    label: 'Supply Chain Shock',
+    description: 'Component shortages and logistic bottlenecks reduce feasibility by 15% and raise execution risk by 20%.',
+    modifiers: {
+      feasibility: -15,
+      executionRisk: 20,
+    },
+  },
+  {
+    id: 'interest_rate_cut',
+    label: 'Interest Rate Cut',
+    description: 'Cheaper cost of capital unlocks venture spending, boosting market impact by 10%.',
+    modifiers: {
+      marketImpact: 10,
+    },
+  },
+];
 
 /** Kill-criteria taxonomy: keyword heuristics map each flagged risk to the
  *  failure mode that would invalidate the thesis. Domain vocabulary is
@@ -123,9 +181,10 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Clear a pending [Copied ✓] timer if the drawer unmounts mid-feedback.
+  // Clear a pending [Copied ✓] timer or ongoing stream if the drawer unmounts mid-feedback.
   useEffect(() => {
     return () => {
+      if (blindspotAbortRef.current) blindspotAbortRef.current.abort();
       if (memoResetTimer.current) clearTimeout(memoResetTimer.current);
     };
   }, []);
@@ -138,6 +197,145 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
   // One-Click Export: [Copy Memo] → clipboard async memo dossier in the top bar.
   const [memoCopied, setMemoCopied] = useState(false);
   const memoResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --- Strategic Synergies & Adjacencies (Vector Semantic Retrieval) ---
+  const [synergies, setSynergies] = useState<SynergyOpportunity[]>([]);
+  const [synergiesLoading, setSynergiesLoading] = useState(false);
+
+  // --- Macro Scenario Stress-Test State ---
+  const [activeScenario, setActiveScenario] = useState<MacroScenario | null>(null);
+
+  // --- Dynamic AI Blindspot Synthesis State ---
+  const [isBlindspotExpanded, setIsBlindspotExpanded] = useState(false);
+  const [blindspotStatus, setBlindspotStatus] = useState<'idle' | 'loading' | 'complete'>('idle');
+  const [blindspotText, setBlindspotText] = useState<string>('');
+  const blindspotAbortRef = useRef<AbortController | null>(null);
+
+  // Reset blindspot synthesis when the active opportunity changes
+  useEffect(() => {
+    if (blindspotAbortRef.current) {
+      blindspotAbortRef.current.abort();
+      blindspotAbortRef.current = null;
+    }
+    setIsBlindspotExpanded(false);
+    setBlindspotStatus('idle');
+    setBlindspotText('');
+  }, [opportunity?.id]);
+
+  const triggerBlindspotSynthesis = useCallback(async () => {
+    if (blindspotStatus !== 'idle') return;
+    setBlindspotStatus('loading');
+    setBlindspotText('');
+
+    if (blindspotAbortRef.current) {
+      blindspotAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    blindspotAbortRef.current = controller;
+
+    try {
+      const res = await fetch('/api/blindspot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          opportunityId: opportunity?.id,
+          title: opportunity?.title,
+          sector: opportunity?.dominant_sector || (opportunity as any)?.sector,
+          region: opportunity?.primary_region || (opportunity as any)?.region,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Streaming failed with status: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          accumulated += chunk;
+          setBlindspotText(accumulated);
+        }
+      }
+
+      setBlindspotStatus('complete');
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return;
+      }
+      console.error('[OpportunityDetailDrawer] Blindspot streaming error:', err);
+      // Graceful termination so UI does not remain hung in loading state
+      setBlindspotStatus('complete');
+    }
+  }, [blindspotStatus, opportunity]);
+
+  const handleToggleBlindspot = useCallback(() => {
+    setIsBlindspotExpanded((prev) => {
+      const next = !prev;
+      if (next && blindspotStatus === 'idle') {
+        triggerBlindspotSynthesis();
+      }
+      return next;
+    });
+  }, [blindspotStatus, triggerBlindspotSynthesis]);
+
+  useEffect(() => {
+    if (!isOpen || !opportunity) {
+      setSynergies([]);
+      setSynergiesLoading(false);
+      return;
+    }
+
+    const query = opportunity.title || opportunity.dominant_sector || (opportunity as any).sector || '';
+    if (!query.trim()) {
+      setSynergies([]);
+      setSynergiesLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSynergiesLoading(true);
+
+    fetch(`/api/search?q=${encodeURIComponent(query)}&limit=3`, {
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Search request failed with status ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data.success && Array.isArray(data.results)) {
+          // Filter out the active opportunity to present truly adjacent signals
+          const filtered = data.results
+            .filter((item: SynergyOpportunity) => item.id !== opportunity.id)
+            .slice(0, 3);
+          setSynergies(filtered);
+        } else {
+          setSynergies([]);
+        }
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn('[OpportunityDetailDrawer] Synergies search error:', err);
+          setSynergies([]);
+        }
+      })
+      .finally(() => {
+        setSynergiesLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [isOpen, opportunity?.id, opportunity?.title, opportunity?.dominant_sector]);
 
   const shareText = opportunity
     ? opportunity.short_description
@@ -173,38 +371,6 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
     }
   }, [pageUrl]);
 
-  // --- One-Click Export: structured Executive Markdown Dossier ---
-  const handleCopyDossier = useCallback(async () => {
-    if (!opportunity) return;
-    const dossier = [
-      `# Opportunity Dossier: ${opportunity.title}`,
-      `**Sector**: ${opportunity.sector || opportunity.dominant_sector || 'General'} | **Region**: ${opportunity.region || opportunity.primary_region || 'Global'}`,
-      `**Viability Score**: ${opportunity.feasibility_score}% | **Band**: ${opportunity.band}`,
-      '',
-      '## Core Problem',
-      opportunity.core_problem || opportunity.short_description || '',
-      '',
-      '## Actionable Venture Model',
-      opportunity.actionable_venture_model || opportunity.long_description || '',
-      '',
-      '## Concrete Catalysts',
-      ...(opportunity.specific_catalysts || []).map((c) => `- ${c}`),
-      '',
-      '## Key Execution Risks & Invalidation Criteria',
-      ...(opportunity.risks || []).map((r) => `- ${r}`),
-    ].join('\n');
-
-    try {
-      await navigator.clipboard.writeText(dossier);
-      setMemoCopied(true);
-      if (memoResetTimer.current) clearTimeout(memoResetTimer.current);
-      memoResetTimer.current = setTimeout(() => setMemoCopied(false), 2000);
-    } catch {
-      // Clipboard blocked (permissions / non-secure context) — stay silent.
-    }
-  }, [opportunity]);
-  // --- end one-click export ---
-
   // --- P4: weighted viability score matrix ---
   // Execution risk is not stored on the row — derived as the residual that
   // reconciles the three stored components with the composite probability
@@ -221,6 +387,7 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
     );
     const executionRisk = Math.min(100, Math.max(0, residual));
     return {
+      executionRisk,
       clamped: residual !== executionRisk,
       composite: opportunity.probability_score,
       rows: [
@@ -232,11 +399,143 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
     };
   }, [opportunity]);
 
-  // --- P4: thesis invalidation criteria (risk → failure-mode classification) ---
-  const killCriteria = useMemo(
-    () => (opportunity?.risks || []).map((risk) => ({ risk, category: classifyKillCriterion(risk) })),
-    [opportunity]
-  );
+  // --- Macro Scenario What-If Stress Calculations ---
+  const adjustedScores = useMemo(() => {
+    if (!opportunity || !scoreMatrix) return null;
+
+    const baseFeasibility = opportunity.feasibility_score;
+    const baseMarketImpact = opportunity.impact_score;
+    const baseVelocity = opportunity.time_to_market_score;
+    const baseExecutionRisk = scoreMatrix.executionRisk;
+
+    if (!activeScenario) {
+      return {
+        feasibility: { value: baseFeasibility, delta: 0, status: 'neutral' as const },
+        marketImpact: { value: baseMarketImpact, delta: 0, status: 'neutral' as const },
+        timingVelocity: { value: baseVelocity, delta: 0, status: 'neutral' as const },
+        executionRisk: { value: baseExecutionRisk, delta: 0, status: 'neutral' as const },
+      };
+    }
+
+    const scenario = MACRO_SCENARIOS.find((s) => s.id === activeScenario);
+    const modFeas = scenario?.modifiers.feasibility ?? 0;
+    const modImpact = scenario?.modifiers.marketImpact ?? 0;
+    const modVelocity = scenario?.modifiers.timingVelocity ?? 0;
+    const modRisk = scenario?.modifiers.executionRisk ?? 0;
+
+    const adjustedFeas = Math.min(100, Math.max(0, baseFeasibility + modFeas));
+    const adjustedImpact = Math.min(100, Math.max(0, baseMarketImpact + modImpact));
+    const adjustedVelocity = Math.min(100, Math.max(0, baseVelocity + modVelocity));
+    const adjustedRisk = Math.min(100, Math.max(0, baseExecutionRisk + modRisk));
+
+    const deltaFeas = adjustedFeas - baseFeasibility;
+    const deltaImpact = adjustedImpact - baseMarketImpact;
+    const deltaVelocity = adjustedVelocity - baseVelocity;
+    const deltaRisk = adjustedRisk - baseExecutionRisk;
+
+    return {
+      feasibility: {
+        value: adjustedFeas,
+        delta: deltaFeas,
+        status: deltaFeas > 0 ? ('improved' as const) : deltaFeas < 0 ? ('worsened' as const) : ('neutral' as const),
+      },
+      marketImpact: {
+        value: adjustedImpact,
+        delta: deltaImpact,
+        status: deltaImpact > 0 ? ('improved' as const) : deltaImpact < 0 ? ('worsened' as const) : ('neutral' as const),
+      },
+      timingVelocity: {
+        value: adjustedVelocity,
+        delta: deltaVelocity,
+        status: deltaVelocity > 0 ? ('improved' as const) : deltaVelocity < 0 ? ('worsened' as const) : ('neutral' as const),
+      },
+      executionRisk: {
+        value: adjustedRisk,
+        delta: deltaRisk,
+        // For risk: higher is worse, lower is better
+        status: deltaRisk > 0 ? ('worsened' as const) : deltaRisk < 0 ? ('improved' as const) : ('neutral' as const),
+      },
+    };
+  }, [opportunity, scoreMatrix, activeScenario]);
+
+  // --- Thesis invalidation triggers (2-3 specific triggers with failure mode and accent) ---
+  const killTriggers = useMemo(() => {
+    if (!opportunity) return [];
+    const items: Array<{ label: string; description: string; accent: 'red' | 'amber' }> = [];
+
+    if (opportunity.risks && opportunity.risks.length > 0) {
+      opportunity.risks.slice(0, 3).forEach((risk) => {
+        const cat = classifyKillCriterion(risk);
+        items.push({
+          label: cat.label,
+          description: risk,
+          accent: cat.accent,
+        });
+      });
+    }
+
+    const fallbacks: Array<{ label: string; description: string; accent: 'red' | 'amber' }> = [
+      {
+        label: 'REGULATORY REVERSAL',
+        description: 'Abrupt shift in jurisdictional policy, licensing restrictions, or withdrawal of trade incentives.',
+        accent: 'amber',
+      },
+      {
+        label: 'SUPPLY CHAIN SUBSTITUTE',
+        description: 'Rapid market commoditization by incumbent suppliers or unviable tier-1 dependency bottlenecks.',
+        accent: 'red',
+      },
+      {
+        label: 'MACRO HURDLE DISLOCATION',
+        description: 'Cost of capital shift or severe margin compression exceeding underwriting thresholds.',
+        accent: 'red',
+      },
+    ];
+
+    let fallbackIdx = 0;
+    while (items.length < 2 && fallbackIdx < fallbacks.length) {
+      items.push(fallbacks[fallbackIdx++]);
+    }
+
+    return items.slice(0, 3);
+  }, [opportunity]);
+
+  // --- One-Click Export: structured Executive Markdown Dossier ---
+  const handleCopyDossier = useCallback(async () => {
+    if (!opportunity) return;
+    const executionRiskVal = scoreMatrix ? scoreMatrix.executionRisk : 0;
+    const dossier = [
+      `# Opportunity Dossier: ${opportunity.title}`,
+      `**Sector**: ${opportunity.sector || opportunity.dominant_sector || 'General'} | **Region**: ${opportunity.region || opportunity.primary_region || 'Global'}`,
+      `**Viability Score**: ${opportunity.feasibility_score}% | **Band**: ${opportunity.band}`,
+      `**Score Matrix**: Feasibility (35%): ${opportunity.feasibility_score}% | Market Impact (25%): ${opportunity.impact_score}% | Velocity & Timing (20%): ${opportunity.time_to_market_score}% | Execution Risk (20%): ${executionRiskVal}%`,
+      '',
+      '## Core Problem',
+      opportunity.core_problem || opportunity.short_description || '',
+      '',
+      '## Actionable Venture Model',
+      opportunity.actionable_venture_model || opportunity.long_description || '',
+      '',
+      '## Concrete Catalysts',
+      ...(opportunity.specific_catalysts || []).map((c) => `- ${c}`),
+      '',
+      '## Thesis Invalidation / Kill Criteria',
+      ...killTriggers.map((t) => `- [${t.label}] ${t.description}`),
+      '',
+      '## Key Execution Risks & Invalidation Criteria',
+      ...(opportunity.risks || []).map((r) => `- ${r}`),
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(dossier);
+      setMemoCopied(true);
+      if (memoResetTimer.current) clearTimeout(memoResetTimer.current);
+      memoResetTimer.current = setTimeout(() => setMemoCopied(false), 2000);
+    } catch {
+      // Clipboard blocked (permissions / non-secure context) — stay silent.
+    }
+  }, [opportunity, scoreMatrix, killTriggers]);
+  // --- end one-click export ---
 
   // --- P4: 48h signal momentum trigger ---
   const velocity = useMemo(
@@ -345,7 +644,7 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                         ? 'bg-amber-500/10 text-amber-300 border-amber-500/40'
                         : 'bg-rose-500/10 text-rose-300 border-rose-500/40'
                     }`}>
-                      {opportunity.probability_score}% • {bandMeta.label}
+                      {bandMeta.label.toUpperCase()}
                     </span>
                   )}
                   {/* P4: Signal Velocity Trigger — 48h momentum badge */}
@@ -375,6 +674,160 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                 <h2 className="text-base font-black text-white leading-snug tracking-tight">
                   {opportunity.title}
                 </h2>
+
+                {/* Score Breakdown Matrix: high-density 4-metric matrix in a 2x2 monospace grid */}
+                {scoreMatrix && adjustedScores && (
+                  <div className="space-y-2">
+                    {/* MACRO STRESS TEST Toggle Row */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider mr-1">
+                        Macro Stress Test:
+                      </span>
+                      {MACRO_SCENARIOS.map((scenario) => {
+                        const isActive = activeScenario === scenario.id;
+                        return (
+                          <button
+                            key={scenario.id}
+                            type="button"
+                            onClick={() => setActiveScenario(isActive ? null : scenario.id)}
+                            className={`text-xs rounded-full border px-3 py-1 transition-colors cursor-pointer ${
+                              isActive
+                                ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300'
+                                : 'border-neutral-700 text-neutral-400 hover:border-neutral-500'
+                            }`}
+                            title={scenario.description}
+                          >
+                            {scenario.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="bg-neutral-900/50 border border-neutral-800 rounded p-3 text-xs font-mono">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        {/* Feasibility */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-neutral-400">Feasibility (35%)</span>
+                          <div className="flex items-center gap-1 font-bold">
+                            <span
+                              className={
+                                adjustedScores.feasibility.status === 'worsened'
+                                  ? 'text-rose-400'
+                                  : adjustedScores.feasibility.status === 'improved'
+                                  ? 'text-emerald-400'
+                                  : 'text-emerald-400'
+                              }
+                            >
+                              {adjustedScores.feasibility.value}%
+                            </span>
+                            {adjustedScores.feasibility.delta !== 0 && (
+                              <span
+                                className={`text-[10px] ${
+                                  adjustedScores.feasibility.status === 'worsened'
+                                    ? 'text-rose-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
+                                ({adjustedScores.feasibility.delta > 0 ? '+' : ''}
+                                {adjustedScores.feasibility.delta}%)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Market Impact */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-neutral-400">Market Impact (25%)</span>
+                          <div className="flex items-center gap-1 font-bold">
+                            <span
+                              className={
+                                adjustedScores.marketImpact.status === 'worsened'
+                                  ? 'text-rose-400'
+                                  : adjustedScores.marketImpact.status === 'improved'
+                                  ? 'text-emerald-400'
+                                  : 'text-emerald-400'
+                              }
+                            >
+                              {adjustedScores.marketImpact.value}%
+                            </span>
+                            {adjustedScores.marketImpact.delta !== 0 && (
+                              <span
+                                className={`text-[10px] ${
+                                  adjustedScores.marketImpact.status === 'worsened'
+                                    ? 'text-rose-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
+                                ({adjustedScores.marketImpact.delta > 0 ? '+' : ''}
+                                {adjustedScores.marketImpact.delta}%)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Velocity & Timing */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-neutral-400">Velocity & Timing (20%)</span>
+                          <div className="flex items-center gap-1 font-bold">
+                            <span
+                              className={
+                                adjustedScores.timingVelocity.status === 'worsened'
+                                  ? 'text-rose-400'
+                                  : adjustedScores.timingVelocity.status === 'improved'
+                                  ? 'text-emerald-400'
+                                  : 'text-amber-400'
+                              }
+                            >
+                              {adjustedScores.timingVelocity.value}%
+                            </span>
+                            {adjustedScores.timingVelocity.delta !== 0 && (
+                              <span
+                                className={`text-[10px] ${
+                                  adjustedScores.timingVelocity.status === 'worsened'
+                                    ? 'text-rose-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
+                                ({adjustedScores.timingVelocity.delta > 0 ? '+' : ''}
+                                {adjustedScores.timingVelocity.delta}%)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Execution Risk */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-neutral-400">Execution Risk (20%)</span>
+                          <div className="flex items-center gap-1 font-bold">
+                            <span
+                              className={
+                                adjustedScores.executionRisk.status === 'worsened'
+                                  ? 'text-rose-400'
+                                  : adjustedScores.executionRisk.status === 'improved'
+                                  ? 'text-emerald-400'
+                                  : 'text-rose-400'
+                              }
+                            >
+                              {adjustedScores.executionRisk.value}%
+                            </span>
+                            {adjustedScores.executionRisk.delta !== 0 && (
+                              <span
+                                className={`text-[10px] ${
+                                  adjustedScores.executionRisk.status === 'worsened'
+                                    ? 'text-rose-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
+                                ({adjustedScores.executionRisk.delta > 0 ? '+' : ''}
+                                {adjustedScores.executionRisk.delta}%)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* The Alpha (TL;DR) — why should I care, instantly (inlined) */}
@@ -456,69 +909,80 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                 </div>
               )}
 
-              {/* P4: Score Breakdown Matrix — weighted deconstruction of the composite viability score */}
-              {scoreMatrix && (
-                <div className="bg-white/5 rounded-2xl p-4 ring-1 ring-white/10 backdrop-blur-md">
-                  <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-300 mb-3 flex items-center font-mono">
-                    <Gauge className="w-3.5 h-3.5 mr-1.5 text-emerald-400" /> Viability Score Matrix
-                  </h4>
-                  <div className="font-mono text-[10px] uppercase">
-                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem_3.5rem] gap-x-2 text-slate-500 pb-1.5 border-b border-white/10">
-                      <span>Component</span>
-                      <span className="text-right">Raw</span>
-                      <span className="text-right">Wt</span>
-                      <span className="text-right">Contrib</span>
-                    </div>
-                    {scoreMatrix.rows.map((row) => (
-                      <div key={row.label} className="py-1.5 border-b border-white/5">
-                        <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem_3.5rem] gap-x-2 items-center">
-                          <span className="text-slate-300 font-bold truncate">
-                            {row.label}
-                            {row.derived && <span className="text-slate-500 font-normal"> *</span>}
-                          </span>
-                          <span
-                            className={`text-right font-black ${
-                              row.raw >= 70
-                                ? 'text-emerald-300'
-                                : row.raw >= 50
-                                ? 'text-amber-300'
-                                : 'text-rose-300'
-                            }`}
-                          >
-                            {row.raw}
-                          </span>
-                          <span className="text-right text-slate-500">{Math.round(row.weight * 100)}%</span>
-                          <span className="text-right text-slate-200 font-bold">{row.contribution.toFixed(1)}</span>
-                        </div>
-                        {/* Raw-score bar — color mirrors the numeric tier above */}
-                        <div className="mt-1 h-1 rounded-full bg-white/5 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              row.raw >= 70
-                                ? 'bg-emerald-400/70'
-                                : row.raw >= 50
-                                ? 'bg-amber-400/70'
-                                : 'bg-rose-400/70'
-                            }`}
-                            style={{ width: `${Math.min(100, Math.max(0, row.raw))}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_2.75rem_3.5rem] gap-x-2 pt-2 items-center">
-                      <span className="text-slate-200 font-black">Σ Composite</span>
-                      <span />
-                      <span className="text-right text-slate-500">100%</span>
-                      <span className="text-right text-emerald-300 font-black">{scoreMatrix.composite}%</span>
-                    </div>
-                    {scoreMatrix.clamped && (
-                      <p className="pt-1.5 text-[9px] text-slate-500 normal-case">
-                        * execution risk derived as the reconciling residual and clamped to 0-100 — weighted sum ≠ composite
-                      </p>
+              {/* Dynamic AI Blindspot Synthesis */}
+              <section aria-label="AI Blindspot Synthesis" className="space-y-0">
+                <div
+                  onClick={handleToggleBlindspot}
+                  className="cursor-pointer bg-purple-900/10 border border-purple-500/30 p-3 rounded-md flex justify-between items-center transition-colors hover:bg-purple-900/20"
+                >
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-purple-400" />
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-300 font-mono">
+                      AI BLINDSPOT SYNTHESIS
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {blindspotStatus === 'loading' && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
+                        {blindspotText ? 'STREAMING...' : 'GENERATING...'}
+                      </span>
                     )}
+                    <ChevronDown
+                      className={`w-4 h-4 text-purple-400 transition-transform duration-200 ${
+                        isBlindspotExpanded ? 'rotate-180' : ''
+                      }`}
+                    />
                   </div>
                 </div>
-              )}
+
+                {isBlindspotExpanded && (
+                  <div className="bg-purple-900/10 border border-purple-500/30 border-t-0 p-3 pt-0 rounded-b-md">
+                    {blindspotStatus === 'loading' && !blindspotText ? (
+                      <div className="pt-3 border-t border-purple-500/20">
+                        <div className="animate-pulse bg-purple-900/20 rounded h-4 w-full mb-2" />
+                        <div className="animate-pulse bg-purple-900/20 rounded h-4 w-5/6 mb-2" />
+                        <div className="animate-pulse bg-purple-900/20 rounded h-4 w-4/6 mb-2" />
+                      </div>
+                    ) : blindspotText ? (
+                      <div className="text-xs text-purple-200/90 leading-relaxed font-mono mt-3 pt-3 border-t border-purple-500/20 whitespace-pre-line">
+                        {blindspotText}
+                        {blindspotStatus === 'loading' && (
+                          <span className="inline-block w-1.5 h-3.5 ml-1 bg-purple-400 animate-pulse align-middle" />
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </section>
+
+              {/* High-Visibility Thesis Invalidation / Kill Criteria */}
+              <section aria-label="Thesis Invalidation — Kill Criteria" className="space-y-2">
+                <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 flex items-center font-mono">
+                  <AlertOctagon className="w-3.5 h-3.5 mr-1.5 text-amber-400" /> THESIS INVALIDATION / KILL CRITERIA
+                </h4>
+                <div className="space-y-2">
+                  {killTriggers.map((trigger, idx) => (
+                    <div
+                      key={idx}
+                      className={`border-l-2 ${
+                        trigger.accent === 'red' ? 'border-rose-500/80' : 'border-amber-500/80'
+                      } bg-neutral-900/40 p-3 text-xs text-neutral-300 rounded-r flex flex-col gap-1`}
+                    >
+                      <div className="flex items-center justify-between font-mono text-[10px]">
+                        <span
+                          className={`font-bold tracking-wider ${
+                            trigger.accent === 'red' ? 'text-rose-400' : 'text-amber-400'
+                          }`}
+                        >
+                          {trigger.label}
+                        </span>
+                        <span className="text-neutral-600 uppercase">Trigger #{idx + 1}</span>
+                      </div>
+                      <p className="leading-relaxed">{trigger.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
               {/* Detailed Analysis */}
               <div>
@@ -565,44 +1029,6 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                 </div>
               </div>
 
-              {/* P4: Thesis Invalidation — Kill Criteria */}
-              <div className="bg-rose-500/[0.05] ring-1 ring-rose-500/30 rounded-2xl p-4 backdrop-blur-md">
-                <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-rose-300 mb-1 flex items-center font-mono">
-                  <Skull className="w-3.5 h-3.5 mr-1.5 text-rose-400" /> Thesis Invalidation — Kill Criteria
-                </h4>
-                <p className="text-[9px] font-mono uppercase tracking-wider text-rose-200/60 mb-3">
-                  The venture thesis is void if any of these conditions materialize
-                </p>
-                {killCriteria.length > 0 ? (
-                  <ul className="space-y-2">
-                    {killCriteria.map(({ risk, category }, i) => (
-                      <li
-                        key={i}
-                        className={`p-2.5 rounded-xl ring-1 bg-white/[0.02] ${
-                          category.accent === 'red' ? 'ring-rose-500/40' : 'ring-amber-500/40'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block mb-1 px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider ${
-                            category.accent === 'red'
-                              ? 'bg-rose-500/15 text-rose-300'
-                              : 'bg-amber-500/15 text-amber-300'
-                          }`}
-                        >
-                          {category.label}
-                        </span>
-                        <p className="text-[11px] text-slate-300 font-medium leading-snug">{risk}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[11px] text-slate-500 italic">
-                    No explicit invalidation triggers flagged — treat the absence of kill criteria as
-                    unmodeled risk, not safety.
-                  </p>
-                )}
-              </div>
-
               {/* Linked Source Articles */}
               {opportunity.source_articles && opportunity.source_articles.length > 0 && (
                 <div>
@@ -632,6 +1058,103 @@ export const OpportunityDetailDrawer: React.FC<OpportunityDetailDrawerProps> = (
                   </div>
                 </div>
               )}
+
+              {/* Strategic Synergies & Adjacencies (Vector-Powered Semantic Retrieval) */}
+              <section aria-label="Strategic Synergies & Adjacencies" className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center font-mono">
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-emerald-400" /> STRATEGIC SYNERGIES & ADJACENCIES
+                  </h4>
+                  <span className="text-[10px] font-mono text-neutral-500 uppercase">
+                    Vector Match
+                  </span>
+                </div>
+
+                {synergiesLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((idx) => (
+                      <div
+                        key={idx}
+                        className="bg-neutral-900/40 border border-neutral-800 rounded-md p-3 animate-pulse space-y-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="h-3.5 bg-neutral-800 rounded w-2/3" />
+                          <div className="h-3 bg-neutral-800/80 rounded w-20 shrink-0" />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-4 bg-neutral-800/60 rounded w-14" />
+                          <div className="h-4 bg-neutral-800/60 rounded w-16" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : synergies.length > 0 ? (
+                  <div className="space-y-2">
+                    {synergies.map((item) => {
+                      const matchScore =
+                        typeof item.vector_similarity === 'number' && item.vector_similarity > 0
+                          ? `${(item.vector_similarity * 100).toFixed(1)}% Match`
+                          : typeof item.probability_score === 'number'
+                          ? `${item.probability_score}% Match`
+                          : 'Vector Match';
+
+                      const bandStyle =
+                        item.band === 'green'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : item.band === 'orange'
+                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                          : 'bg-rose-500/10 text-rose-400 border-rose-500/30';
+
+                      const region = item.primary_region || item.region;
+                      const sector = item.dominant_sector || item.sector;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="bg-neutral-900/40 border border-neutral-800 rounded-md p-3 transition-all duration-200 hover:border-neutral-700 hover:bg-neutral-900/70 group"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <span
+                              className="text-xs font-semibold text-neutral-200 truncate group-hover:text-emerald-300 transition-colors"
+                              title={item.title}
+                            >
+                              {item.title}
+                            </span>
+                            <span className="font-mono text-[11px] text-emerald-400 font-bold shrink-0">
+                              {matchScore}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.band && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${bandStyle}`}
+                              >
+                                {item.band.toUpperCase()}
+                              </span>
+                            )}
+                            {region && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/5 text-neutral-400 border border-white/10">
+                                {region}
+                              </span>
+                            )}
+                            {sector && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/5 text-slate-400 border border-white/10">
+                                {sector}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-neutral-900/40 border border-neutral-800 rounded-md p-3 text-center">
+                    <p className="text-neutral-500 text-xs font-mono">
+                      No strategic synergies or adjacent signals detected.
+                    </p>
+                  </div>
+                )}
+              </section>
 
               {/* Share this Alpha — viral distribution rail (inlined) */}
               <section

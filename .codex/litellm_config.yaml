@@ -1,0 +1,22 @@
+model_list:
+  # Primary Model
+  - model_name: deepseek-codex
+    litellm_params:
+      model: openai/deepseek/deepseek-v4-flash
+      api_base: https://api.xkiro.com/v1
+      api_key: sk-xt-991cd91a0714a7d3ad50f36ab15a7b52ba4b659633ee1ea1
+      drop_params: true
+      use_chat_completions_api: true
+
+  # Fallback Model
+  - model_name: qwen-codex
+    litellm_params:
+      model: openai/qwen/qwen3.8-max:free
+      api_base: https://api.xkiro.com/v1
+      api_key: sk-xt-991cd91a0714a7d3ad50f36ab15a7b52ba4b659633ee1ea1
+      drop_params: true
+      use_chat_completions_api: true
+
+# This section tells LiteLLM what to do on an error
+litellm_settings:
+  fallbacks: [{"deepseek-codex": ["qwen-codex"]}]

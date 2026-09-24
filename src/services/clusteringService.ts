@@ -4,6 +4,8 @@ import { getPool } from '../db/index.js';
 export interface ArticleRecord {
   id: number;
   source: string;
+  source_type?: string;
+  source_platform?: string;
   external_id: string;
   title: string | null;
   url: string;
@@ -17,6 +19,7 @@ export interface ArticleRecord {
   avg_tone: number | null;
   relevance_score: number;
   matched_sectors: string[];
+  community_comments?: any[];
   cluster_id: number | null;
 }
 
@@ -27,6 +30,7 @@ export interface StoryClusterRecord {
   dominant_sector: string;
   primary_region: string;
   article_count: number;
+  source_type?: string;
   articles: ArticleRecord[];
 }
 
@@ -158,10 +162,17 @@ export function clusterArticles(articles: ArticleRecord[]): StoryClusterRecord[]
       }
     }
 
-    const metadata = deriveClusterMetadata(group);
+  const metadata = deriveClusterMetadata(group);
+    const hasGdelt = group.some((a) => (a.source_type || a.source || 'GDELT').toUpperCase() === 'GDELT');
+    const hasHorizon = group.some((a) => (a.source_type || a.source || '').toUpperCase() === 'HORIZON');
+    let clusterSourceType = 'GDELT';
+    if (hasGdelt && hasHorizon) clusterSourceType = 'HYBRID';
+    else if (hasHorizon) clusterSourceType = 'HORIZON';
+
     clusters.push({
       ...metadata,
       article_count: group.length,
+      source_type: clusterSourceType,
       articles: group,
     });
   }
@@ -184,7 +195,10 @@ export async function runClusteringPipeline(options?: {
   if (!isDryRun) {
     const pool = getPool();
     const queryRes = await pool.query<ArticleRecord>(
-      `SELECT * FROM articles WHERE cluster_id IS NULL ORDER BY relevance_score DESC, published_at DESC LIMIT $1`,
+      `SELECT * FROM articles
+       WHERE cluster_id IS NULL
+         AND (published_at >= NOW() - INTERVAL '24 hours' OR published_at IS NULL)
+       ORDER BY relevance_score DESC, published_at DESC LIMIT $1`,
       [limit]
     );
     unclusteredArticles = queryRes.rows;
@@ -210,10 +224,10 @@ export async function runClusteringPipeline(options?: {
       for (const cluster of clusters) {
         // Insert cluster record
         const clusterRes = await client.query(
-          `INSERT INTO story_clusters (title, topic_label, dominant_sector, primary_region, article_count)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO story_clusters (title, topic_label, dominant_sector, primary_region, article_count, source_type)
+           VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id;`,
-          [cluster.title, cluster.topic_label, cluster.dominant_sector, cluster.primary_region, cluster.article_count]
+          [cluster.title, cluster.topic_label, cluster.dominant_sector, cluster.primary_region, cluster.article_count, cluster.source_type || 'GDELT']
         );
 
         const newClusterId = clusterRes.rows[0].id;

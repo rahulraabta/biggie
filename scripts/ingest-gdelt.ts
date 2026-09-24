@@ -1,9 +1,16 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
 import readline from 'readline';
 import unzipper from 'unzipper';
 import { Readable } from 'node:stream';
 import { PoolClient } from 'pg';
 import { loadRelevanceConfig, RelevanceConfig } from '../src/config/relevanceConfig.js';
 import { evaluateEventRelevance, GdeltEvent, RelevanceEvaluation } from '../src/services/relevanceEngine.js';
+import { normalizeCountryCode } from '../src/utils/geoUtils.js';
 import { closePool, getPool } from '../src/db/index.js';
 
 export interface IngestionMetrics {
@@ -85,6 +92,77 @@ export async function getGdeltExportUrl(dateOverride?: string): Promise<string> 
 }
 
 /**
+ * Derives a clean human-readable article title from a source URL slug or hostname.
+ */
+export function deriveTitleFromUrl(url: string): string {
+  if (!url || typeof url !== 'string') return 'Global Market Event Signal';
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    let lastSegment = segments.pop() || '';
+
+    // Remove extensions like .html, .htm, .php, .aspx, .ece, .story
+    let slug = lastSegment.replace(/\.(html?|php|aspx?|ece|story)$/i, '');
+
+    // If slug is purely numeric or too short (e.g. /12345), try previous segment
+    if ((/^\d+$/.test(slug) || slug.length < 3) && segments.length > 0) {
+      slug = segments.pop()?.replace(/\.(html?|php|aspx?|ece|story)$/i, '') || slug;
+    }
+
+    // Replace hyphens, underscores, and URL encoded tokens with spaces
+    slug = slug.replace(/[-_]+/g, ' ').replace(/%20/g, ' ').trim();
+
+    if (slug.length > 3 && !/^\d+$/.test(slug)) {
+      return slug
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
+
+    const host = parsed.hostname.replace(/^www\./i, '');
+    const capitalizedHost = host.charAt(0).toUpperCase() + host.slice(1);
+    return `${capitalizedHost} News Signal`;
+  } catch {
+    return 'Global Market Event Signal';
+  }
+}
+
+/**
+ * Extracts a 2-letter country code from GDELT geo columns with validation.
+ *
+ * Ground truth from live GDELT 2.0 exports (61 tab-separated fields):
+ *   Actor1Geo_CountryCode = [37], Actor2Geo_CountryCode = [45],
+ *   ActionGeo_CountryCode = [53] (preferred — where the event happened).
+ * The old code read fields[51] which is ActionGeo_Type (an enum 1-5),
+ * storing numeric junk like "4" into articles.country_code.
+ *
+ * GDELT 1.0 (58 tab-separated fields): Actor1Geo_CountryCode = [37],
+ *   Actor2Geo_CountryCode = [44], ActionGeo_CountryCode = [51].
+ *
+ * Both layouts are probed in priority order (ActionGeo, then Actor2Geo, then
+ * Actor1Geo), because padded or truncated rows make the raw column count an
+ * unreliable layout signal on its own. Every candidate must be exactly two
+ * A-Z letters, so a misaligned column can never leak junk.
+ */
+function extractCountryCode(fields: string[]): string {
+  const isCountryCode = (val: string | undefined): boolean =>
+    /^[A-Z]{2}$/.test((val || '').trim().toUpperCase());
+
+  const candidates =
+    fields.length > 58
+      ? [53, 45, 37, 51, 44] // GDELT 2.0 layout first, then 1.0 ActionGeo/Actor2Geo
+      : [51, 44, 37, 53, 45]; // GDELT 1.0 layout first, then 2.0 equivalents
+
+  for (const idx of candidates) {
+    const code = (fields[idx] || '').trim().toUpperCase();
+    if (isCountryCode(code)) return code;
+  }
+  return '';
+}
+
+/**
  * Parses a single tab-separated line from GDELT 1.0/2.0 CSV export into a GdeltEvent object.
  */
 export function parseGdeltLine(line: string): GdeltEvent | null {
@@ -107,7 +185,7 @@ export function parseGdeltLine(line: string): GdeltEvent | null {
     goldsteinScale: parseFloat(fields[30] || '0.0') || 0.0,
     numMentions: parseInt(fields[31] || '1', 10) || 1,
     avgTone: parseFloat(fields[34] || '0.0') || 0.0,
-    actionCountryCode: fields[51]?.trim() || fields[37]?.trim() || fields[44]?.trim() || '',
+    actionCountryCode: extractCountryCode(fields),
     sourceUrl,
   };
 }
@@ -121,13 +199,44 @@ async function upsertEventBatch(
 ): Promise<{ inserted: number; updated: number }> {
   if (batch.length === 0) return { inserted: 0, updated: 0 };
 
+  const uniqueBatchMap = new Map<string, { event: GdeltEvent; evalRes: RelevanceEvaluation }>();
+
+  for (const item of batch) {
+    const existing = uniqueBatchMap.get(item.event.sourceUrl);
+    if (!existing) {
+      uniqueBatchMap.set(item.event.sourceUrl, {
+        event: { ...item.event },
+        evalRes: {
+          ...item.evalRes,
+          matchedSectors: [...item.evalRes.matchedSectors],
+        },
+      });
+    } else {
+      existing.event.numMentions += item.event.numMentions;
+      existing.event.goldsteinScale = item.event.goldsteinScale;
+      existing.event.avgTone = item.event.avgTone;
+      if (item.evalRes.score > existing.evalRes.score) {
+        existing.evalRes.score = item.evalRes.score;
+      }
+      const combinedSectors = Array.from(
+        new Set([...existing.evalRes.matchedSectors, ...item.evalRes.matchedSectors])
+      );
+      existing.evalRes.matchedSectors = combinedSectors;
+    }
+  }
+
+  const uniqueBatch = Array.from(uniqueBatchMap.values());
   const valueTuples: string[] = [];
   const queryValues: any[] = [];
 
-  batch.forEach(({ event, evalRes }, idx) => {
-    const offset = idx * 12;
+  uniqueBatch.forEach(({ event, evalRes }, idx) => {
+    const derivedTitle = deriveTitleFromUrl(event.sourceUrl);
+    // GDELT emits FIPS 10-4 codes (CH=China, JA=Japan) — normalize to ISO so
+    // IN/US/CN/JP filters and capital-coordinate fallbacks resolve correctly.
+    const isoCountryCode = normalizeCountryCode(event.actionCountryCode);
+    const offset = idx * 14;
     valueTuples.push(
-      `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12})`
+      `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14})`
     );
 
     let publishedAt: string | null = null;
@@ -138,9 +247,10 @@ async function upsertEventBatch(
     queryValues.push(
       'gdelt',
       event.globalEventId,
+      derivedTitle,
       event.sourceUrl,
       publishedAt,
-      event.actionCountryCode.toUpperCase(),
+      isoCountryCode,
       event.actor1,
       event.actor2,
       event.eventCode,
@@ -154,11 +264,18 @@ async function upsertEventBatch(
 
   const query = `
     INSERT INTO articles (
-      source, external_id, url, published_at, country_code, actor_1, actor_2,
+      source, external_id, title, url, published_at, country_code, actor_1, actor_2,
       event_code, goldstein_scale, num_mentions, avg_tone, relevance_score, matched_sectors
     )
     VALUES ${valueTuples.join(', ')}
     ON CONFLICT (url) DO UPDATE SET
+      title = COALESCE(articles.title, EXCLUDED.title),
+      -- Repair legacy rows whose country_code holds GDELT ActionGeo_Type junk
+      -- (digits 0-5) instead of a real ISO code; keep any already-valid value.
+      country_code = CASE
+        WHEN articles.country_code ~ '^[A-Z]{2}$' THEN articles.country_code
+        ELSE EXCLUDED.country_code
+      END,
       num_mentions = articles.num_mentions + EXCLUDED.num_mentions,
       goldstein_scale = EXCLUDED.goldstein_scale,
       avg_tone = EXCLUDED.avg_tone,
@@ -407,7 +524,11 @@ export async function runIngestion(options?: {
 }
 
 // CLI Execution Entrypoint
-if (typeof require !== 'undefined' && require.main === module) {
+const isMainModule =
+  (typeof require !== 'undefined' && require.main === module) ||
+  (Boolean(process.argv[1]) && process.argv[1].includes('ingest-gdelt'));
+
+if (isMainModule) {
   const args = process.argv.slice(2);
   const isDryRunArg = args.includes('--dry-run') || args.includes('-d');
   const dateArg = args.find((arg) => arg.startsWith('--date='))?.split('=')[1];

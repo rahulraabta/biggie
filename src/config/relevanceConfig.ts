@@ -49,7 +49,7 @@ export function loadRelevanceConfig(): RelevanceConfig {
       'regulatory',
     ]),
     priorityCountries: parseList(process.env.PRIORITY_COUNTRIES, [
-      'in', 'us', 'gb', 'sg', 'ae', 'de', 'jp', 'eu', 'global'
+      'in', 'us', 'cn', 'gb', 'sg', 'ae', 'de', 'jp', 'eu', 'global'
     ]),
     customKeywords: parseList(process.env.CUSTOM_KEYWORDS, [
       'funding',

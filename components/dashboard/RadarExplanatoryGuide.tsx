@@ -1,84 +1,97 @@
 'use client';
 
 import React from 'react';
-import { Info, HelpCircle, ShieldCheck, Cpu, Layers, Sparkles, AlertTriangle } from 'lucide-react';
+import { Info, HelpCircle, ShieldCheck, Cpu, Layers, Sparkles, AlertTriangle, Orbit } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export const RadarExplanatoryGuide: React.FC = () => {
   return (
-    <div className="panel-surface p-5 text-slate-100 space-y-4">
+    <div className="glass-panel p-5 text-slate-100 space-y-4 relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-        <div className="flex items-center space-x-2.5">
-          <div className="p-2 bg-sky-950/80 border border-sky-800/80 rounded-xl text-sky-400">
-            <HelpCircle className="w-4 h-4" />
+      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-emerald-500/10 ring-1 ring-emerald-500/40 rounded-xl text-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.2)]">
+            <Orbit className="w-4 h-4 text-emerald-400 animate-spin" style={{ animationDuration: '12s' }} />
           </div>
           <div>
-            <h3 className="text-sm font-extrabold text-slate-100 uppercase tracking-wider">
-              How to Read this Radar
+            <h3 className="text-xs font-black text-slate-100 uppercase tracking-wider flex items-center">
+              <span className="emerald-gradient-text">How to Read this Radar</span>
             </h3>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-400 font-medium">
               Methodology & automated viability scoring framework
             </p>
           </div>
         </div>
-        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
+        <span className="text-[10px] font-mono font-bold text-emerald-300 uppercase tracking-wider bg-emerald-500/10 ring-1 ring-emerald-500/40 px-2.5 py-1 rounded-xl">
           Intelligence Guide
         </span>
       </div>
 
       {/* 4 Step Methodology Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs font-medium">
         {/* Step 1 */}
-        <div className="p-3.5 bg-[#060a12]/80 border border-slate-800/80 rounded-xl space-y-1.5">
-          <div className="flex items-center space-x-2 text-sky-400 font-bold">
-            <Cpu className="w-4 h-4 shrink-0" />
+        <motion.div
+          whileHover={{ y: -2 }}
+          className="p-3.5 bg-white/5 ring-1 ring-emerald-500/25 rounded-2xl space-y-1.5 backdrop-blur-md transition-colors duration-300 hover:bg-white/10"
+        >
+          <div className="flex items-center space-x-2 text-emerald-300 font-extrabold text-xs">
+            <Cpu className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>1. Global Ingestion</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
+          <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
             Continuous NLP ingestion of global GDELT events, filtering policy, CapEx, regulatory, and industrial news.
           </p>
-        </div>
+        </motion.div>
 
         {/* Step 2 */}
-        <div className="p-3.5 bg-[#060a12]/80 border border-slate-800/80 rounded-xl space-y-1.5">
-          <div className="flex items-center space-x-2 text-amber-400 font-bold">
-            <Layers className="w-4 h-4 shrink-0" />
+        <motion.div
+          whileHover={{ y: -2 }}
+          className="p-3.5 bg-white/5 ring-1 ring-amber-500/25 rounded-2xl space-y-1.5 backdrop-blur-md transition-colors duration-300 hover:bg-white/10"
+        >
+          <div className="flex items-center space-x-2 text-amber-300 font-extrabold text-xs">
+            <Layers className="w-4 h-4 text-amber-400 shrink-0" />
             <span>2. Story Clustering</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
+          <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
             Aggregating related events across geographies into high-momentum thematic story clusters and sector hubs.
           </p>
-        </div>
+        </motion.div>
 
         {/* Step 3 */}
-        <div className="p-3.5 bg-[#060a12]/80 border border-slate-800/80 rounded-xl space-y-1.5">
-          <div className="flex items-center space-x-2 text-emerald-400 font-bold">
-            <ShieldCheck className="w-4 h-4 shrink-0" />
+        <motion.div
+          whileHover={{ y: -2 }}
+          className="p-3.5 bg-white/5 ring-1 ring-emerald-500/25 rounded-2xl space-y-1.5 backdrop-blur-md transition-colors duration-300 hover:bg-white/10"
+        >
+          <div className="flex items-center space-x-2 text-emerald-300 font-extrabold text-xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>3. Viability Scoring</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
+          <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
             Multi-factor scoring combining Feasibility, Impact, and Time-to-Market into High, Medium, & Low likelihood bands.
           </p>
-        </div>
+        </motion.div>
 
         {/* Step 4 */}
-        <div className="p-3.5 bg-[#060a12]/80 border border-slate-800/80 rounded-xl space-y-1.5">
-          <div className="flex items-center space-x-2 text-sky-400 font-bold">
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>4. AI Co-Pilot Context</span>
+        <motion.div
+          whileHover={{ y: -2 }}
+          className="p-3.5 bg-white/5 ring-1 ring-emerald-500/25 rounded-2xl space-y-1.5 backdrop-blur-md transition-colors duration-300 hover:bg-white/10"
+        >
+          <div className="flex items-center space-x-2 text-emerald-300 font-extrabold text-xs">
+            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 animate-pulse" />
+            <span>4. Radar Scout AI</span>
           </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Interactive AI due diligence co-pilot assisting with GTM strategies, capital estimation, and risk analysis.
+          <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+            Character-driven AI due diligence guide assisting with GTM strategies, capital estimation, and risk analysis.
           </p>
-        </div>
+        </motion.div>
       </div>
 
       {/* AI Disclaimer Notice Banner */}
-      <div className="p-3 bg-[#060a12] border border-slate-800 rounded-xl text-[11px] text-slate-400 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+      <div className="p-3 bg-black/40 ring-1 ring-amber-500/30 rounded-2xl text-[11px] text-slate-300 flex items-center justify-between backdrop-blur-md">
+        <div className="flex items-center space-x-2.5">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
-            <strong className="text-slate-200 font-semibold">AI Disclaimer:</strong> Opportunity scores and strategic analyses are generated by computational models from public news streams. Not financial, legal, or investment advice.
+            <strong className="text-slate-100 font-bold">AI Disclaimer:</strong> Opportunity scores and strategic analyses are generated by computational models from public news streams. Not financial, legal, or investment advice.
           </span>
         </div>
       </div>

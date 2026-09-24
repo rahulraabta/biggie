@@ -19,7 +19,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ opportunities, totalCount })
     : '0.0';
 
   return (
-    <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 lg:px-8 py-2.5">
+    <div className="glass-chrome border-b border-white/10 px-4 lg:px-8 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-4 text-xs">
         {/* Signal Metrics Pill Group */}
         <div className="flex items-center space-x-4 flex-wrap gap-y-1">

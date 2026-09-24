@@ -1,4 +1,5 @@
 import { RelevanceConfig } from '../config/relevanceConfig.js';
+import { normalizeCountryCode } from '../utils/geoUtils.js';
 
 export interface GdeltEvent {
   globalEventId: string;
@@ -125,9 +126,11 @@ export function evaluateEventRelevance(
   const prominenceScore = Math.min(1.0, Math.log2(1 + event.numMentions) / 5.0);
 
   // 4. Geographic Priority Score (15%)
-  const country = (event.actionCountryCode || '').toLowerCase();
+  // GDELT emits FIPS 10-4 codes (CH=China, JA=Japan) — normalize to ISO before
+  // comparing so 'cn' / 'jp' priority entries actually match.
+  const country = normalizeCountryCode(event.actionCountryCode).toLowerCase();
   let geoScore = 0.4;
-  if (country && config.priorityCountries.includes(country)) {
+  if (country && country !== 'global' && config.priorityCountries.includes(country)) {
     geoScore = 1.0;
   } else if (!country || config.priorityCountries.includes('global')) {
     geoScore = 0.6;

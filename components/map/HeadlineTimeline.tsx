@@ -48,7 +48,7 @@ export const HeadlineTimeline: React.FC<HeadlineTimelineProps> = ({ headlines })
               <div className="flex items-center space-x-2">
                 <span className="flex items-center text-slate-400">
                   <Clock className="w-3 h-3 mr-1 text-slate-500" />
-                  {formattedDate}
+                  <span suppressHydrationWarning>{formattedDate}</span>
                 </span>
                 <span className="text-slate-700">•</span>
                 <span className="text-slate-300 font-semibold">{item.source}</span>

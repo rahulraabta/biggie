@@ -1,7 +1,9 @@
 import pg, { Pool, QueryResult, QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 declare global {
   var pgPool: Pool | undefined;
@@ -9,7 +11,7 @@ declare global {
 
 export function getPool(): Pool {
   if (!globalThis.pgPool) {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString = (process.env.DATABASE_URL || '').trim();
     if (!connectionString) {
       throw new Error('DATABASE_URL environment variable is not defined.');
     }
