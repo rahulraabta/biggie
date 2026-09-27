@@ -1,9 +1,5 @@
 import pg, { Pool, QueryResult, QueryResultRow } from 'pg';
-import dotenv from 'dotenv';
-import path from 'path';
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+import { env } from '@/src/config/env';
 
 declare global {
   var pgPool: Pool | undefined;
@@ -11,13 +7,10 @@ declare global {
 
 export function getPool(): Pool {
   if (!globalThis.pgPool) {
-    const connectionString = (process.env.DATABASE_URL || '').trim();
-    if (!connectionString) {
-      throw new Error('DATABASE_URL environment variable is not defined.');
-    }
+    const connectionString = env.DATABASE_URL.trim();
     globalThis.pgPool = new pg.Pool({
       connectionString,
-      max: parseInt(process.env.PG_POOL_MAX || '10', 10),
+      max: env.PG_POOL_MAX,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
     });

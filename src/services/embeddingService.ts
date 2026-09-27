@@ -1,13 +1,8 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-
 import { VoyageAIClient } from 'voyageai';
 // '@/src/...' alias resolves under both Next (Turbopack) and tsx (tsconfig paths);
 // relative '../db/index.js' only works under tsx and breaks the app bundler.
 import { query } from '@/src/db/index';
+import { env } from '@/src/config/env';
 
 /**
  * Voyage AI embedding gateway for Opportunity Earth semantic search.
@@ -28,7 +23,7 @@ const MAX_BATCH_SIZE = 128;
  * allows 3 requests/minute, so calls are spaced ~22s apart. Override with
  * VOYAGE_MIN_INTERVAL_MS on paid tiers.
  */
-const MIN_EMBED_INTERVAL_MS = Math.max(0, parseInt(process.env.VOYAGE_MIN_INTERVAL_MS || '22000', 10));
+const MIN_EMBED_INTERVAL_MS = Math.max(0, env.VOYAGE_MIN_INTERVAL_MS);
 /** Pause before each HTTP 429 retry; after MAX_429_RETRIES attempts the error propagates. */
 const RETRY_429_PAUSE_MS = 22_000;
 const MAX_429_RETRIES = 3;
@@ -87,7 +82,7 @@ declare global {
 
 export function getVoyageClient(): VoyageAIClient {
   if (!globalThis.voyageClient) {
-    const apiKey = (process.env.VOYAGE_API_KEY || '').trim();
+    const apiKey = (env.VOYAGE_API_KEY || '').trim();
     if (!apiKey) {
       throw new Error('VOYAGE_API_KEY environment variable is not defined (.env / .env.local).');
     }

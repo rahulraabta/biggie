@@ -12,10 +12,10 @@
     "ingest:dry-run": "tsx scripts/ingest-gdelt.ts --dry-run",
     "opportunities": "tsx scripts/generate-opportunities.ts",
     "opportunities:dry-run": "tsx scripts/generate-opportunities.ts --dry-run",
-    "pipeline": "tsx scripts/run-pipeline.ts",
-    "pipeline:dry-run": "tsx scripts/run-pipeline.ts --dry-run",
+    "pipeline": "node --import tsx scripts/run-pipeline.ts",
+    "pipeline:dry-run": "node --import tsx scripts/run-pipeline.ts --dry-run",
     "migrate": "tsx scripts/run-migrations.ts",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "tsx --import ./src/tests/setup.ts --test tests/**/*.test.ts"
   },
   "keywords": [],
   "author": "",

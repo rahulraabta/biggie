@@ -1,8 +1,4 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+import { env } from '@/src/config/env';
 
 export interface LlmRequestOptions {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
@@ -37,17 +33,17 @@ export interface LlmConfig {
  * Automatically selects Cohere API if COHERE_API_KEY is present in environment.
  */
 export function getLlmConfig(): LlmConfig {
-  const cohereKey = (process.env.COHERE_API_KEY || '').trim();
-  const genericKey = (process.env.LLM_API_KEY || '').trim();
+  const cohereKey = (env.COHERE_API_KEY || '').trim();
+  const genericKey = (env.LLM_API_KEY || '').trim();
   const apiKey = cohereKey || genericKey;
 
   const isCohere = Boolean(cohereKey);
 
   return {
-    baseUrl: process.env.LLM_BASE_URL || (isCohere ? 'https://api.cohere.com/v2' : 'https://api.groq.com/openai/v1'),
+    baseUrl: env.LLM_BASE_URL || (isCohere ? 'https://api.cohere.com/v2' : 'https://api.groq.com/openai/v1'),
     apiKey,
-    model: process.env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'llama-3.3-70b-versatile'),
-    maxRetries: parseInt(process.env.LLM_MAX_RETRIES || '5', 10),
+    model: env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'llama-3.3-70b-versatile'),
+    maxRetries: env.LLM_MAX_RETRIES,
   };
 }
 
