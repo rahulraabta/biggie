@@ -1,8 +1,10 @@
 import { BaseAgent } from './baseAgent.js';
 import { AgentType, PipelineEvent, OpportunityTaskPayload, OpportunityResultPayload } from '../types.js';
 import { processClusterOpportunities } from '@/src/services/opportunityEngine';
+import type { OpportunityGenerationResult } from '@/src/services/opportunityEngine';
 import { StoryClusterRecord } from '@/src/services/clusteringService';
 import { getPool } from '@/src/db/index';
+import { callLlmWithCache } from '@/src/services/llmWithCache';
 
 export class OpportunityAgent extends BaseAgent {
   readonly agentType: AgentType = 'opportunity';
@@ -31,9 +33,20 @@ export class OpportunityAgent extends BaseAgent {
       clusters.push({ ...cRow, articles: articlesDb.rows as any });
     }
 
-    const result = await processClusterOpportunities(clusters, {
-      dryRun: payload.dryRun,
+    // The engine calls the LLM per cluster; the whole synthesis is cached under
+    // an idempotency hash of the cluster payload so identical input replays
+    // instead of paying for the same completions twice. `dryRun` is part of the
+    // key so a dry-run entry can never satisfy a real (persisting) run.
+    const { response: result, cached } = await callLlmWithCache<OpportunityGenerationResult>({
+      agentType: 'opportunity',
+      payload: { dryRun: payload.dryRun ?? false, clusters },
+      call: async () => ({
+        response: await processClusterOpportunities(clusters, { dryRun: payload.dryRun }),
+      }),
     });
+    if (cached) {
+      console.log('[OpportunityAgent] llm_cache hit - replaying prior synthesis for identical clusters.');
+    }
 
     const opportunityResult: OpportunityResultPayload = {
       totalClustersProcessed: result.totalClustersProcessed,
