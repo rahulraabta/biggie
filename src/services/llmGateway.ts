@@ -1,4 +1,4 @@
-import { env } from '@/src/config/env';
+import { env, getLlmEnv } from '@/src/config/env';
 
 export interface LlmRequestOptions {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
@@ -30,19 +30,29 @@ export interface LlmConfig {
 
 /**
  * Reads LLM provider settings from environment variables with sensible defaults.
- * Automatically selects Cohere API if COHERE_API_KEY is present in environment.
+ * Automatically selects Cohere API if COHERE_API_KEY is present; otherwise it
+ * falls back to the lazily validated OpenAI env (getLlmEnv), which is the only
+ * point where an OPENAI_API_KEY becomes required.
  */
 export function getLlmConfig(): LlmConfig {
   const cohereKey = (env.COHERE_API_KEY || '').trim();
   const genericKey = (env.LLM_API_KEY || '').trim();
-  const apiKey = cohereKey || genericKey;
 
-  const isCohere = Boolean(cohereKey);
+  if (cohereKey || genericKey) {
+    const isCohere = Boolean(cohereKey);
+    return {
+      baseUrl: env.LLM_BASE_URL || (isCohere ? 'https://api.cohere.com/v2' : 'https://api.groq.com/openai/v1'),
+      apiKey: cohereKey || genericKey,
+      model: env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'llama-3.3-70b-versatile'),
+      maxRetries: env.LLM_MAX_RETRIES,
+    };
+  }
 
+  const llm = getLlmEnv();
   return {
-    baseUrl: env.LLM_BASE_URL || (isCohere ? 'https://api.cohere.com/v2' : 'https://api.groq.com/openai/v1'),
-    apiKey,
-    model: env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'llama-3.3-70b-versatile'),
+    baseUrl: llm.OPENAI_BASE_URL || 'https://api.groq.com/openai/v1',
+    apiKey: llm.OPENAI_API_KEY,
+    model: llm.LLM_MODEL,
     maxRetries: env.LLM_MAX_RETRIES,
   };
 }
