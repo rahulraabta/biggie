@@ -21,7 +21,7 @@ interface HealthBody {
 }
 
 const AGENTS = ['ingestion', 'clustering', 'opportunity'] as const;
-const QUEUE_KEYS = ['pending', 'processing', 'completed', 'failed', 'dead_letter', 'completed24h'] as const;
+const QUEUE_KEYS = ['pending', 'running', 'completed', 'failed', 'dead_letter', 'completed24h'] as const;
 
 /**
  * Installs a fake pool on globalThis.pgPool. src/db/index.ts getPool() returns
@@ -79,7 +79,7 @@ test('GET /api/health/pipeline - all-zero queue is healthy (200)', async () => {
   assert.equal(body.status, 'healthy');
   assert.deepEqual(body.queue, {
     pending: 0,
-    processing: 0,
+    running: 0,
     completed: 0,
     failed: 0,
     dead_letter: 0,
@@ -125,7 +125,7 @@ test('GET /api/health/pipeline - stale pending queue escalates by age', async ()
   assert.equal(unhealthy.body.oldestPendingAgeMs, 2_000_000);
 });
 
-test('GET /api/health/pipeline - maps running to processing and aggregates per-agent 24h', async () => {
+test('GET /api/health/pipeline - buckets running directly and aggregates per-agent 24h', async () => {
   installFakePool(respond(
     [
       { status: 'running', count: 2 },
@@ -141,11 +141,38 @@ test('GET /api/health/pipeline - maps running to processing and aggregates per-a
 
   assert.equal(httpStatus, 200);
   assert.equal(body.status, 'healthy');
-  assert.equal(body.queue.processing, 2);
+  assert.equal(body.queue.running, 2);
   assert.equal(body.queue.completed, 4);
   assert.equal(body.queue.completed24h, 5);
   assert.deepEqual(body.perAgent.ingestion, { pending: 3, failed: 1, completed24h: 5 });
   assert.deepEqual(body.perAgent.opportunity, { pending: 0, failed: 0, completed24h: 0 });
+  assertShape(body);
+});
+
+test('GET /api/health/pipeline - one dead-letter event is degraded (200)', async () => {
+  installFakePool(respond([{ status: 'dead_letter', count: 1 }]));
+
+  const { httpStatus, body } = await callHealth();
+
+  assert.equal(httpStatus, 200);
+  assert.equal(body.status, 'degraded');
+  assert.equal(body.queue.dead_letter, 1);
+  assert.equal(body.queue.failed, 0);
+  assertShape(body);
+});
+
+test('GET /api/health/pipeline - failed + dead_letter above 10 is unhealthy (503)', async () => {
+  installFakePool(respond([
+    { status: 'failed', count: 10 },
+    { status: 'dead_letter', count: 1 },
+  ]));
+
+  const { httpStatus, body } = await callHealth();
+
+  assert.equal(httpStatus, 503);
+  assert.equal(body.status, 'unhealthy');
+  assert.equal(body.queue.failed, 10);
+  assert.equal(body.queue.dead_letter, 1);
   assertShape(body);
 });
 

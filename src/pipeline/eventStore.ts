@@ -95,17 +95,52 @@ export async function markCompleted(
   );
 }
 
-/** Marks an event failed with an error message. */
-export async function markFailed(eventId: number, errorMessage: string): Promise<void> {
-  await query(
+/**
+ * Marks an event failed with an error message, bumping its retry counter.
+ * @returns the event's retry_count after the increment.
+ */
+export async function markFailed(eventId: number, errorMessage: string): Promise<number> {
+  const res = await query<{ retry_count: number }>(
     `UPDATE pipeline_events
      SET status = 'failed',
-         error_message = $1,
+         error_message = $2,
+         failed_at = NOW(),
+         retry_count = retry_count + 1,
          locked_at = NULL,
          updated_at = NOW()
-     WHERE id = $2`,
-    [errorMessage, eventId]
+     WHERE id = $1
+     RETURNING retry_count`,
+    [eventId, errorMessage]
   );
+  return Number(res.rows[0]?.retry_count ?? 0);
+}
+
+/**
+ * Moves an event to the dead-letter queue. Only failed/running events may be
+ * dead-lettered, so a late worker cannot clobber a completed event.
+ * @returns true when a row transitioned.
+ */
+export async function markDeadLetter(eventId: number, reason: string): Promise<boolean> {
+  const res = await query(
+    `UPDATE pipeline_events
+     SET status = 'dead_letter',
+         error_message = $2,
+         dead_lettered_at = NOW(),
+         locked_at = NULL,
+         updated_at = NOW()
+     WHERE id = $1 AND status IN ('failed', 'running')`,
+    [eventId, reason]
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/** Reads the current retry_count for an event. */
+export async function getRetryCount(eventId: number): Promise<number> {
+  const res = await query<{ retry_count: number }>(
+    `SELECT retry_count FROM pipeline_events WHERE id = $1`,
+    [eventId]
+  );
+  return Number(res.rows[0]?.retry_count ?? 0);
 }
 
 /** Read-only poll: all events for a run in creation order. */

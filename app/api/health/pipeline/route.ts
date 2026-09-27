@@ -9,7 +9,7 @@ export type PipelineAgentType = 'ingestion' | 'clustering' | 'opportunity';
 
 export interface PipelineQueueCounts {
   pending: number;
-  processing: number;
+  running: number;
   completed: number;
   failed: number;
   dead_letter: number;
@@ -49,7 +49,7 @@ type AgentTotalRow = {
 type OldestPendingRow = { age_ms: number | string | null };
 
 function emptyQueue(): PipelineQueueCounts {
-  return { pending: 0, processing: 0, completed: 0, failed: 0, dead_letter: 0, completed24h: 0 };
+  return { pending: 0, running: 0, completed: 0, failed: 0, dead_letter: 0, completed24h: 0 };
 }
 
 function emptyPerAgent(): Record<PipelineAgentType, PipelineAgentCounts> {
@@ -103,8 +103,7 @@ export async function GET(): Promise<NextResponse> {
           queue.pending += count;
           break;
         case 'running':
-        case 'processing':
-          queue.processing += count;
+          queue.running += count;
           break;
         case 'completed':
           queue.completed += count;
@@ -140,7 +139,7 @@ export async function GET(): Promise<NextResponse> {
     let status: PipelineHealthStatus = 'healthy';
     if (failedTotal > UNHEALTHY_FAILED_THRESHOLD || oldestPendingAgeMs > UNHEALTHY_PENDING_AGE_MS) {
       status = 'unhealthy';
-    } else if (queue.failed > 0 || oldestPendingAgeMs > DEGRADED_PENDING_AGE_MS) {
+    } else if (failedTotal > 0 || oldestPendingAgeMs > DEGRADED_PENDING_AGE_MS) {
       status = 'degraded';
     }
 

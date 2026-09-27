@@ -2,7 +2,12 @@ export type AgentType = 'ingestion' | 'clustering' | 'opportunity';
 
 export type EventType = 'task' | 'result' | 'error' | 'status';
 
-export type EventStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type EventStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'dead_letter';
 
 export interface PipelineEvent {
   id: number;
@@ -12,6 +17,9 @@ export interface PipelineEvent {
   status: EventStatus;
   payload: Record<string, unknown>;
   error_message: string | null;
+  retry_count: number;
+  failed_at: Date | null;
+  dead_lettered_at: Date | null;
   created_at: Date;
   updated_at: Date;
   locked_at: Date | null;

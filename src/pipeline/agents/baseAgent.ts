@@ -1,5 +1,6 @@
 import { AgentType, PipelineEvent } from '../types.js';
-import { claimNextTask, markCompleted, markFailed } from '../eventStore.js';
+import { claimNextTask, markCompleted, markFailed, markDeadLetter } from '../eventStore.js';
+import { env } from '@/src/config/env';
 
 /**
  * Base class for one-shot worker processes.
@@ -42,7 +43,10 @@ export abstract class BaseAgent {
     } catch (err) {
       const msg = err instanceof Error ? (err.stack || err.message) : String(err);
       try {
-        await markFailed(task.id, msg);
+        const retryCount = await markFailed(task.id, msg);
+        if (retryCount >= env.PIPELINE_MAX_RETRIES) {
+          await markDeadLetter(task.id, msg);
+        }
       } catch (markErr) {
         console.error(`[${this.agentType}] Failed to mark event ${task.id} failed:`, markErr);
       }
