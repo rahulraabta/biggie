@@ -16,6 +16,10 @@ interface HealthBody {
   queue: Record<string, number>;
   oldestPendingAgeMs: number;
   perAgent: Record<string, Record<string, number>>;
+  llmSpend24hUsd: number;
+  llmSpendByAgent24h: Record<string, number>;
+  cacheHitRate24h: number;
+  llmCalls24h: number;
   checkedAt: string;
   error?: string;
 }
@@ -41,9 +45,12 @@ function installFakePool(responder: QueryResponder | Error): void {
 function respond(
   totals: DbRow[],
   perAgent: DbRow[] = [],
-  ageMs: number | null = null
+  ageMs: number | null = null,
+  llmRows: DbRow[] = []
 ): QueryResponder {
   return (text) => {
+    // Checked first: the llm_usage rollup also groups by agent_type.
+    if (text.includes('FROM llm_usage')) return llmRows;
     if (text.includes('GROUP BY status')) return totals;
     if (text.includes('GROUP BY agent_type')) return perAgent;
     if (text.includes('MIN(created_at)')) return [{ age_ms: ageMs }];
@@ -62,6 +69,10 @@ function assertShape(body: HealthBody): void {
     assert.equal(typeof body.queue[key], 'number', `queue.${key} should be a number`);
   }
   assert.equal(typeof body.oldestPendingAgeMs, 'number');
+  assert.equal(typeof body.llmSpend24hUsd, 'number');
+  assert.equal(typeof body.llmSpendByAgent24h, 'object');
+  assert.equal(typeof body.cacheHitRate24h, 'number');
+  assert.equal(typeof body.llmCalls24h, 'number');
   for (const agent of AGENTS) {
     for (const key of ['pending', 'failed', 'completed24h']) {
       assert.equal(typeof body.perAgent[agent][key], 'number', `perAgent.${agent}.${key}`);
@@ -86,6 +97,46 @@ test('GET /api/health/pipeline - all-zero queue is healthy (200)', async () => {
     completed24h: 0,
   });
   assert.equal(body.oldestPendingAgeMs, 0);
+  assert.equal(body.llmSpend24hUsd, 0);
+  assert.deepEqual(body.llmSpendByAgent24h, {});
+  assert.equal(body.cacheHitRate24h, 0);
+  assert.equal(body.llmCalls24h, 0);
+  assertShape(body);
+});
+
+test('GET /api/health/pipeline - reports 24h LLM spend, per-agent spend, and cache hit rate', async () => {
+  installFakePool(respond([], [], null, [
+    { agent_type: 'opportunity', cost_usd: '1.234567', calls: 10, cached_calls: 4 },
+    { agent_type: 'clustering', cost_usd: '0.000000', calls: 2, cached_calls: 2 },
+  ]));
+
+  const { httpStatus, body } = await callHealth();
+
+  assert.equal(httpStatus, 200);
+  assert.equal(body.llmSpend24hUsd, 1.234567);
+  assert.deepEqual(body.llmSpendByAgent24h, { opportunity: 1.234567, clustering: 0 });
+  assert.equal(body.llmCalls24h, 12);
+  assert.equal(body.cacheHitRate24h, 0.5);
+  assertShape(body);
+});
+
+test('GET /api/health/pipeline - missing llm_usage table degrades to zeroed LLM fields', async () => {
+  installFakePool((text) => {
+    if (text.includes('FROM llm_usage')) throw new Error('relation "llm_usage" does not exist');
+    if (text.includes('GROUP BY status')) return [];
+    if (text.includes('GROUP BY agent_type')) return [];
+    if (text.includes('MIN(created_at)')) return [{ age_ms: null }];
+    throw new Error(`Unexpected query in health test: ${text}`);
+  });
+
+  const { httpStatus, body } = await callHealth();
+
+  assert.equal(httpStatus, 200);
+  assert.equal(body.status, 'healthy');
+  assert.equal(body.llmSpend24hUsd, 0);
+  assert.deepEqual(body.llmSpendByAgent24h, {});
+  assert.equal(body.cacheHitRate24h, 0);
+  assert.equal(body.llmCalls24h, 0);
   assertShape(body);
 });
 

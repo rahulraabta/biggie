@@ -1,6 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Command } from 'cmdk';
+import { DialogTitle, DialogDescription } from '@radix-ui/react-dialog';
+import { ArrowUpRight, Bot, Globe, LoaderCircle, Search, X } from 'lucide-react';
+import { FOCUS_MARKETS } from '@/src/config/focusMarkets';
 
 export interface OpportunityItem {
   id: number;
@@ -31,11 +35,13 @@ interface CommandPaletteProps {
   onClose: () => void;
   onSelectOpportunity: (opp: OpportunityItem) => void;
   opportunities?: OpportunityItem[];
+  onFilterRegion: (region: string) => void;
+  onAskAI: (question: string) => void;
 }
 
 /** Client-side fuzzy filter — the offline / server-failure fallback. */
 function fuzzyFilter(opportunities: OpportunityItem[], query: string): PaletteResult[] {
-  const q = query.toLowerCase();
+  const q = query.trim().toLowerCase();
   return opportunities
     .filter((opp) => {
       const title = (opp.title || '').toLowerCase();
@@ -58,9 +64,10 @@ export function CommandPalette({
   onClose,
   onSelectOpportunity,
   opportunities = [],
+  onFilterRegion,
+  onAskAI,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [serverResults, setServerResults] = useState<PaletteResult[]>([]);
   const [isServerLoading, setIsServerLoading] = useState(false);
   const [serverFailed, setServerFailed] = useState(false);
@@ -70,7 +77,6 @@ export function CommandPalette({
   useEffect(() => {
     if (isOpen) {
       setQuery('');
-      setSelectedIndex(0);
       setServerResults([]);
       setServerFailed(false);
     }
@@ -95,6 +101,7 @@ export function CommandPalette({
           signal: controller.signal,
         });
         const json = await res.json();
+        if (controller.signal.aborted) return;
         if (json.success && Array.isArray(json.results)) {
           setServerResults(
             json.results.map(
@@ -114,7 +121,7 @@ export function CommandPalette({
                 short_description: r.short_description || undefined,
                 sector: r.dominant_sector || undefined,
                 region: r.primary_region || undefined,
-                feasibility_score: r.feasibility_score ?? r.probability_score,
+                feasibility_score: r.feasibility_score,
                 source: 'hybrid' as const,
                 rrfScore: r.rrf_score,
                 vectorSimilarity: r.vector_similarity,
@@ -145,11 +152,13 @@ export function CommandPalette({
   // filtering while loading, on failure, offline, or for 1-char queries.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    abortRef.current?.abort();
+    setServerResults([]);
+    setIsServerLoading(false);
+    setServerFailed(false);
 
     const trimmed = query.trim();
     if (!isOpen || trimmed.length < SERVER_SEARCH_MIN_LENGTH) {
-      setServerResults([]);
-      setServerFailed(false);
       return;
     }
 
@@ -159,151 +168,109 @@ export function CommandPalette({
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
     };
   }, [query, isOpen, runServerSearch]);
 
-  // Server results take priority; the fuzzy client list stands in while the
-  // request is in flight, after a failure, or when the query is too short.
-  const useServer = isOpen && query.trim().length >= SERVER_SEARCH_MIN_LENGTH && !serverFailed && !isServerLoading && serverResults.length > 0;
-
   const filtered = useMemo<PaletteResult[]>(() => {
-    if (useServer) return serverResults;
     if (!query.trim()) {
       return opportunities
         .slice(0, 8)
         .map((opp) => ({ ...opp, source: 'fuzzy' as const }));
     }
-    return fuzzyFilter(opportunities, query);
-  }, [useServer, serverResults, opportunities, query]);
+    const local = fuzzyFilter(opportunities, query);
+    const localIds = new Set(local.map((item) => item.id));
+    const additional = !serverFailed && !isServerLoading
+      ? serverResults.filter((item) => !localIds.has(item.id)) : [];
+    return [...local, ...additional].slice(0, 8);
+  }, [serverFailed, isServerLoading, serverResults, opportunities, query]);
 
-  // Reset selection whenever the result set changes identity.
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filtered]);
+  const regions = useMemo(() => {
+    const known = Object.values(FOCUS_MARKETS)
+      .filter((market) => market.id !== 'ROW')
+      .map((market) => ({ value: market.id as string, label: market.displayName }));
+    const additional = [...new Set(opportunities.map((opp) => opp.region?.toUpperCase()).filter((region): region is string => Boolean(region)))];
+    const names = new Intl.DisplayNames(['en'], { type: 'region' });
+    return [{ value: 'all', label: 'All regions' }, ...known, ...additional
+      .filter((region) => !known.some((market) => market.value === region))
+      .map((region) => ({ value: region, label: /^[A-Z]{2}$/.test(region) ? names.of(region) || region : region }))]
+      .filter((region) => `filter region ${region.label} ${region.value}`.toLowerCase().includes(query.trim().toLowerCase()));
+  }, [opportunities, query]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex((prev) => (prev + 1) % Math.max(1, filtered.length));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev <= 0 ? Math.max(0, filtered.length - 1) : prev - 1
-        );
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (filtered[selectedIndex]) {
-          onSelectOpportunity(filtered[selectedIndex]);
-          onClose();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filtered, selectedIndex, onClose, onSelectOpportunity]);
-
-  if (!isOpen) return null;
+  const select = (action: () => void) => { action(); onClose(); };
+  const itemClass = 'flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-sm text-slate-300 transition-colors data-[selected=true]:border-emerald-500/20 data-[selected=true]:bg-emerald-500/10 data-[selected=true]:text-slate-200';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4">
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full max-w-xl bg-neutral-950 border border-neutral-800 rounded-lg shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center px-4 py-3 border-b border-neutral-800">
-          <input
-            type="text"
+    <Command.Dialog
+      open={isOpen}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      label="Opportunity Earth command palette"
+      shouldFilter={false}
+      loop
+      overlayClassName="fixed inset-0 z-[70] bg-slate-950/80 backdrop-blur-sm"
+      contentClassName="fixed left-1/2 top-[8vh] sm:top-[12vh] z-[71] w-[calc(100%_-_2rem)] max-w-2xl -translate-x-1/2 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50 text-slate-200 shadow-[0_24px_100px_rgba(0,0,0,0.7)] backdrop-blur-md"
+    >
+        <DialogTitle className="sr-only">Opportunity Earth command palette</DialogTitle>
+        <DialogDescription className="sr-only">Search opportunities, filter by region, or send a question to the AI assistant. Use arrow keys to navigate and Enter to select.</DialogDescription>
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-800">
+          <Search className="h-5 w-5 shrink-0 text-emerald-400" />
+          <Command.Input
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedIndex(0);
-            }}
-            placeholder="Search signals, sectors, or regions..."
-            className="w-full bg-transparent text-sm text-neutral-100 placeholder-neutral-500 focus:outline-none font-sans"
+            onValueChange={setQuery}
+            placeholder="Search opportunities, filter a region, or ask AI…"
+            className="min-w-0 w-full bg-transparent text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
             autoFocus
           />
-          {isServerLoading && (
-            <span className="font-mono text-[10px] text-neutral-500 px-1.5 py-0.5 border border-neutral-800 rounded bg-neutral-900 animate-pulse">
-              SEMANTIC…
-            </span>
-          )}
-          <span className="font-mono text-[10px] text-neutral-500 px-1.5 py-0.5 border border-neutral-800 rounded bg-neutral-900">
-            ESC
-          </span>
+          {isServerLoading && <LoaderCircle aria-label="Searching" className="h-4 w-4 shrink-0 animate-spin text-slate-400" />}
+          <button type="button" onClick={onClose} aria-label="Close command palette" className="rounded p-1 text-slate-500 hover:text-slate-200"><X className="h-4 w-4" /></button>
         </div>
 
-        <div className="max-h-80 overflow-y-auto divide-y divide-neutral-900">
-          {filtered.length === 0 ? (
-            <div className="p-4 text-center text-xs text-neutral-500 font-mono">
-              No matching signals detected
-            </div>
-          ) : (
-            filtered.map((opp, idx) => (
-              <div
+        <Command.List className="max-h-[55vh] overflow-y-auto p-2 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-slate-500">
+          <Command.Empty className="p-6 text-center text-xs text-slate-500">No matching opportunities or regions.</Command.Empty>
+          {filtered.length > 0 && <Command.Group heading="Opportunities">
+            {filtered.map((opp) => (
+              <Command.Item
                 key={opp.id}
-                onClick={() => {
-                  onSelectOpportunity(opp);
-                  onClose();
-                }}
-                className={`p-3 cursor-pointer transition-colors flex items-center justify-between ${
-                  idx === selectedIndex
-                    ? 'bg-neutral-900/80 border-l-2 border-emerald-500'
-                    : 'hover:bg-neutral-900/40'
-                }`}
+                value={`opportunity-${opp.id}`}
+                onSelect={() => select(() => onSelectOpportunity(opp))}
+                className={itemClass}
               >
-                <div className="flex flex-col gap-0.5 truncate pr-2">
-                  <span className="text-sm text-neutral-200 font-medium truncate">
-                    {opp.title}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] text-neutral-500 uppercase">
-                      {opp.sector || 'General'}
-                    </span>
-                    <span className="text-neutral-600 text-xs">•</span>
-                    <span className="font-mono text-[10px] text-neutral-500 uppercase">
-                      {opp.region || 'Global'}
-                    </span>
-                    {/* Rank badges — only on hybrid server results */}
-                    {opp.source === 'hybrid' && (
-                      <span
-                        className="font-mono text-[9px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 rounded"
-                        title={
-                          opp.vectorSimilarity && opp.vectorSimilarity > 0
-                            ? `RRF ${opp.rrfScore?.toFixed(4)} · cosine ${(opp.vectorSimilarity * 100).toFixed(0)}%`
-                            : `RRF ${opp.rrfScore?.toFixed(4)}`
-                        }
-                      >
-                        {opp.vectorSimilarity && opp.vectorSimilarity > 0
-                          ? 'Semantic Match'
-                          : 'Hybrid RRF'}
-                      </span>
-                    )}
-                  </div>
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-emerald-400" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{opp.title}</p>
+                  <p className="mt-1 font-mono text-[10px] uppercase text-slate-500">{opp.sector || 'General'} · {opp.region || 'Global'}</p>
                 </div>
                 {opp.feasibility_score !== undefined && (
-                  <span className="font-mono text-xs text-emerald-400 shrink-0">
+                  <span className="font-mono text-xs text-emerald-400 shrink-0 tabular-nums">
                     {opp.feasibility_score}%
                   </span>
                 )}
-              </div>
-            ))
-          )}
-        </div>
+              </Command.Item>
+            ))}
+          </Command.Group>}
+          {regions.length > 0 && <Command.Group heading="Filter by region">
+            {regions.map((region) => (
+              <Command.Item key={region.value} value={`region-${region.value}`} onSelect={() => select(() => onFilterRegion(region.value))} className={itemClass}>
+                <Globe className="h-4 w-4 text-slate-500" />
+                <span className="flex-1">{region.label}</span>
+                <span className="font-mono text-[10px] text-slate-500">FILTER</span>
+              </Command.Item>
+            ))}
+          </Command.Group>}
+          {query.trim() && <Command.Group heading="AI assistant">
+            <Command.Item value="ask-ai" onSelect={() => select(() => onAskAI(query.trim()))} className={itemClass}>
+              <Bot className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span className="min-w-0 flex-1 truncate">Ask AI: {query.trim()}</span>
+              <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-500" />
+            </Command.Item>
+          </Command.Group>}
+        </Command.List>
 
         {/* Provenance footer — which search leg produced these rows */}
-        <div className="px-4 py-2 border-t border-neutral-800 flex items-center justify-between font-mono text-[10px] text-neutral-500">
-          <span>{useServer ? 'HYBRID RRF · VOYAGE-4 + FTS' : 'CLIENT FUZZY'}</span>
-          <span>↑↓ NAVIGATE · ↵ OPEN</span>
+        <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between font-mono text-[10px] text-slate-500">
+          <span>OPPORTUNITY EARTH</span>
+          <span>↑↓ Navigate · ↵ Select · Esc Close</span>
         </div>
-      </div>
-    </div>
+    </Command.Dialog>
   );
 }

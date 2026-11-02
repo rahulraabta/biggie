@@ -40,6 +40,7 @@ export interface ClusteringTaskPayload {
 export interface OpportunityTaskPayload {
   dryRun?: boolean;
   limit?: number;
+  clusterIds?: number[];
 }
 
 export interface IngestionResultPayload {

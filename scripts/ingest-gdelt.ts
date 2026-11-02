@@ -193,9 +193,10 @@ export function parseGdeltLine(line: string): GdeltEvent | null {
 /**
  * Upserts a batch of relevant events into the PostgreSQL database.
  */
-async function upsertEventBatch(
-  client: PoolClient,
-  batch: Array<{ event: GdeltEvent; evalRes: RelevanceEvaluation }>
+export async function upsertEventBatch(
+  client: Pick<PoolClient, 'query'>,
+  batch: Array<{ event: GdeltEvent; evalRes: RelevanceEvaluation }>,
+  options?: { newOnly?: boolean; publishedAt?: string }
 ): Promise<{ inserted: number; updated: number }> {
   if (batch.length === 0) return { inserted: 0, updated: 0 };
 
@@ -239,8 +240,8 @@ async function upsertEventBatch(
       `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14})`
     );
 
-    let publishedAt: string | null = null;
-    if (event.date && event.date.length === 8) {
+    let publishedAt: string | null = options?.publishedAt || null;
+    if (!publishedAt && event.date && event.date.length === 8) {
       publishedAt = `${event.date.substring(0, 4)}-${event.date.substring(4, 6)}-${event.date.substring(6, 8)}T00:00:00Z`;
     }
 
@@ -268,7 +269,7 @@ async function upsertEventBatch(
       event_code, goldstein_scale, num_mentions, avg_tone, relevance_score, matched_sectors
     )
     VALUES ${valueTuples.join(', ')}
-    ON CONFLICT (url) DO UPDATE SET
+    ${options?.newOnly ? 'ON CONFLICT DO NOTHING' : `ON CONFLICT (url) DO UPDATE SET
       title = COALESCE(articles.title, EXCLUDED.title),
       -- Repair legacy rows whose country_code holds GDELT ActionGeo_Type junk
       -- (digits 0-5) instead of a real ISO code; keep any already-valid value.
@@ -280,7 +281,7 @@ async function upsertEventBatch(
       goldstein_scale = EXCLUDED.goldstein_scale,
       avg_tone = EXCLUDED.avg_tone,
       relevance_score = GREATEST(articles.relevance_score, EXCLUDED.relevance_score),
-      matched_sectors = ARRAY(SELECT DISTINCT unnest(articles.matched_sectors || EXCLUDED.matched_sectors))
+      matched_sectors = ARRAY(SELECT DISTINCT unnest(articles.matched_sectors || EXCLUDED.matched_sectors))`}
     RETURNING (xmax = 0) AS is_inserted;
   `;
 

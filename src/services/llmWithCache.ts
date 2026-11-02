@@ -2,6 +2,7 @@ import { completeChat, parseLlmJsonResponse } from './llmGateway';
 import type { LlmCompletionResponse, LlmRequestOptions } from './llmGateway';
 import { buildKey, getCached, hashPayload, setCached } from '@/src/pipeline/llmCache';
 import type { LlmUsage } from '@/src/pipeline/llmCache';
+import { recordUsage } from '@/src/pipeline/llmUsage';
 
 export interface LlmCacheCallResult<T> {
   response: T;
@@ -14,6 +15,8 @@ export interface CallLlmWithCacheArgs<T> {
   agentType: string;
   /** Everything that determines the LLM output; hashed into the cache key. */
   payload: unknown;
+  /** pipeline_events.id this call belongs to, if any (recorded in llm_usage). */
+  eventId?: number | null;
   /** Request forwarded to the gateway on a miss (ignored when `call` is set). */
   request?: LlmRequestOptions;
   /** Custom parser for the raw completion; defaults to JSON parsing. */
@@ -43,7 +46,8 @@ async function callGateway<T>(args: CallLlmWithCacheArgs<T>): Promise<LlmCacheCa
 }
 
 /**
- * LLM call with an idempotency-keyed response cache.
+ * LLM call with an idempotency-keyed response cache, logging every invocation
+ * (hit or miss) to llm_usage for spend/hit-rate reporting.
  *
  * A hit short-circuits before the gateway is touched; a miss performs the work
  * once and records the result so identical payloads replay from the cache.
@@ -53,27 +57,48 @@ export async function callLlmWithCache<T>(
 ): Promise<{ response: T; cached: boolean; usage?: LlmUsage }> {
   const key = buildKey(args.agentType, args.payload);
   const shortKey = key.slice(0, 8);
+  const eventId = args.eventId ?? null;
 
   const hit = await getCached(key);
   if (hit) {
     console.log(`llm_cache=hit key=${shortKey}`);
+    // A cache hit consumes no tokens: log the event with zero usage/cost.
+    await recordUsage({
+      eventId,
+      agentType: args.agentType,
+      model: hit.model,
+      promptTokens: 0,
+      completionTokens: 0,
+      cached: true,
+    });
     return {
       response: hit.response as T,
       cached: true,
-      usage: { promptTokens: hit.promptTokens, completionTokens: hit.completionTokens },
+      usage: { promptTokens: 0, completionTokens: 0 },
     };
   }
 
   const result = args.call ? await args.call() : await callGateway<T>(args);
+  const model = result.model ?? args.request?.model ?? 'unknown';
+  const promptTokens = result.usage?.promptTokens ?? 0;
+  const completionTokens = result.usage?.completionTokens ?? 0;
 
   await setCached(
     key,
-    result.model ?? args.request?.model ?? 'unknown',
+    model,
     hashPayload(args.request?.messages ?? args.payload),
     result.response,
-    result.usage
+    { promptTokens, completionTokens }
   );
+  await recordUsage({
+    eventId,
+    agentType: args.agentType,
+    model,
+    promptTokens,
+    completionTokens,
+    cached: false,
+  });
   console.log(`llm_cache=miss key=${shortKey}`);
 
-  return { response: result.response, cached: false, usage: result.usage };
+  return { response: result.response, cached: false, usage: { promptTokens, completionTokens } };
 }

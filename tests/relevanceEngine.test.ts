@@ -45,3 +45,52 @@ test('evaluateEventRelevance - low relevance event filtered out', () => {
   const evalRes = evaluateEventRelevance(lowRelEvent, config);
   assert.equal(evalRes.isRelevant, false);
 });
+
+const event: GdeltEvent = {
+  globalEventId: '1', date: '20261102', actor1: 'Residents', actor2: 'Council',
+  eventCode: '071', goldsteinScale: 5, numMentions: 128, avgTone: 0,
+  actionCountryCode: 'IN', sourceUrl: 'https://example.com/local-announcement',
+};
+const config = {
+  ...loadRelevanceConfig(), minRelevanceScore: 0.3, minNumMentions: 1,
+  targetSectors: ['energy'], customKeywords: ['ai', 'supply chain'], priorityCountries: ['in'],
+};
+
+test('high prominence and priority geography cannot bypass topic filters', () => {
+  const result = evaluateEventRelevance(event, config);
+  assert.ok(result.score > config.minRelevanceScore);
+  assert.equal(result.isRelevant, false);
+});
+
+test('either a target sector or a custom keyword satisfies the topic filter', () => {
+  const sector = evaluateEventRelevance({ ...event, actor1: 'Energy' }, config);
+  assert.equal(sector.isRelevant, true);
+  assert.deepEqual(sector.matchedSectors, ['energy']);
+  assert.deepEqual(sector.matchedKeywords, []);
+  const keyword = evaluateEventRelevance({ ...event, actor1: 'AI' }, config);
+  assert.equal(keyword.isRelevant, true);
+  assert.deepEqual(keyword.matchedSectors, []);
+  assert.deepEqual(keyword.matchedKeywords, ['ai']);
+});
+
+test('short keywords and complete multiword phrases match URL separators', () => {
+  const result = evaluateEventRelevance({ ...event, sourceUrl: 'https://example.com/AI-supply-chain' }, config);
+  assert.equal(result.isRelevant, true);
+  assert.deepEqual(result.matchedKeywords, ['ai', 'supply chain']);
+  const unrelated = evaluateEventRelevance({ ...event, sourceUrl: 'https://example.com/retail-supply-chairs' }, config);
+  assert.equal(unrelated.isRelevant, false);
+  assert.deepEqual(unrelated.matchedKeywords, []);
+});
+
+test('singular startup matches a configured startups sector', () => {
+  const result = evaluateEventRelevance({ ...event, actor1: 'Startup' }, { ...config, targetSectors: ['startups'], customKeywords: [] });
+  assert.equal(result.isRelevant, true);
+  assert.deepEqual(result.matchedSectors, ['startups']);
+});
+
+test('matching topics still require the configured relevance score', () => {
+  const matching = { ...event, actor1: 'Energy' };
+  const score = evaluateEventRelevance(matching, config).score;
+  assert.equal(evaluateEventRelevance(matching, { ...config, minRelevanceScore: score }).isRelevant, true);
+  assert.equal(evaluateEventRelevance(matching, { ...config, minRelevanceScore: score + 0.001 }).isRelevant, false);
+});

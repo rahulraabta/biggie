@@ -1,15 +1,20 @@
 @import "tailwindcss";
 
+@theme inline {
+  --font-sans: var(--font-sans-technical), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-technical), ui-monospace, monospace;
+}
+
 @layer base {
   :root {
     --background: 222 47% 5%; /* Deep Space #020617 */
-    --foreground: 210 40% 98%; /* Starlight White */
+    --foreground: 214 32% 91%;
     --surface-void: #020617;
     --surface-stage: #000000;
-    --surface-glass: rgba(255, 255, 255, 0.05);
-    --surface-glass-deep: rgba(0, 0, 0, 0.4);
-    --surface-panel-hover: rgba(255, 255, 255, 0.09);
-    --border-hairline: rgba(255, 255, 255, 0.1);
+    --surface-glass: rgba(15, 23, 42, 0.5);
+    --surface-glass-deep: rgba(15, 23, 42, 0.5);
+    --surface-panel-hover: rgba(30, 41, 59, 0.6);
+    --border-hairline: #1e293b;
     --emerald-primary: #10b981;
     --emerald-glow: #34d399;
     --emerald-deep: #059669;
@@ -19,8 +24,10 @@
 
   body {
     background-color: #020617;
-    color: #f1f5f9;
+    color: #e2e8f0;
+    color-scheme: dark;
     font-family: var(--font-sans-technical), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
     min-height: 100vh;
     overflow-x: hidden;
   }
@@ -29,20 +36,20 @@
 @layer utilities {
   /* Cinematic Glassmorphism Panel System */
   .glass-panel {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid #1e293b;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
   .glass-panel-deep {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid #1e293b;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 0.75rem;
     box-shadow: 0 15px 40px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
@@ -50,7 +57,7 @@
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .glass-panel-hover:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(30, 41, 59, 0.6);
     border-color: rgba(16, 185, 129, 0.4);
     box-shadow: 0 15px 35px -8px rgba(0, 0, 0, 0.7), 0 0 20px -4px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
@@ -58,7 +65,7 @@
   /* Chrome tier for sticky bars / headers sitting over content */
   .glass-chrome {
     background: rgba(2, 6, 23, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid #1e293b;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
   }
@@ -151,6 +158,29 @@
 
 .animate-float-scout {
   animation: float-scout 4s ease-in-out infinite;
+}
+
+@keyframes live-ticker-scroll {
+  to { transform: translateX(-50%); }
+}
+
+.live-ticker-track {
+  animation: live-ticker-scroll var(--ticker-duration, 90s) linear infinite;
+  will-change: transform;
+}
+
+.live-ticker:hover .live-ticker-track,
+.live-ticker:focus-within .live-ticker-track,
+.live-ticker[data-paused="true"] .live-ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-ticker-track {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
 }
 
 /* Custom Scrollbars (dark) */

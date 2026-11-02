@@ -27,6 +27,10 @@ export interface PipelineHealthResponse {
   queue: PipelineQueueCounts;
   oldestPendingAgeMs: number;
   perAgent: Record<PipelineAgentType, PipelineAgentCounts>;
+  llmSpend24hUsd: number;
+  llmSpendByAgent24h: Record<string, number>;
+  cacheHitRate24h: number;
+  llmCalls24h: number;
   checkedAt: string;
 }
 
@@ -47,6 +51,72 @@ type AgentTotalRow = {
   completed_24h: number;
 };
 type OldestPendingRow = { age_ms: number | string | null };
+
+type LlmUsageRow = {
+  agent_type: string;
+  cost_usd: number | string | null;
+  calls: number;
+  cached_calls: number;
+};
+
+interface LlmUsage24h {
+  spendUsd: number;
+  byAgent: Record<string, number>;
+  hitRate: number;
+  calls: number;
+}
+
+function round6(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
+}
+
+function toNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * 24h LLM spend/hit-rate rollup. A fresh deploy may not have the llm_usage
+ * table yet, so failures degrade to zeros instead of failing the endpoint.
+ */
+async function loadLlmUsage24h(): Promise<LlmUsage24h> {
+  const empty: LlmUsage24h = { spendUsd: 0, byAgent: {}, hitRate: 0, calls: 0 };
+
+  try {
+    const res = await query<LlmUsageRow>(
+      `SELECT agent_type,
+              COALESCE(SUM(cost_usd), 0) AS cost_usd,
+              COUNT(*)::int AS calls,
+              COUNT(*) FILTER (WHERE cached)::int AS cached_calls
+       FROM llm_usage
+       WHERE created_at > now() - interval '24 hours'
+       GROUP BY agent_type`
+    );
+
+    let spendUsd = 0;
+    let calls = 0;
+    let cachedCalls = 0;
+    const byAgent: Record<string, number> = {};
+
+    for (const row of res.rows) {
+      const cost = round6(toNumber(row.cost_usd));
+      byAgent[row.agent_type] = cost;
+      spendUsd += cost;
+      calls += toCount(row.calls);
+      cachedCalls += toCount(row.cached_calls);
+    }
+
+    return {
+      spendUsd: round6(spendUsd),
+      byAgent,
+      hitRate: calls > 0 ? cachedCalls / calls : 0,
+      calls,
+    };
+  } catch (err) {
+    console.warn('[Pipeline Health] llm_usage query failed:', err);
+    return empty;
+  }
+}
 
 function emptyQueue(): PipelineQueueCounts {
   return { pending: 0, running: 0, completed: 0, failed: 0, dead_letter: 0, completed24h: 0 };
@@ -135,6 +205,8 @@ export async function GET(): Promise<NextResponse> {
     // No pending events at all -> MIN(created_at) is NULL -> age is 0.
     const oldestPendingAgeMs = toCount(oldest.rows[0]?.age_ms);
 
+    const llmUsage = await loadLlmUsage24h();
+
     const failedTotal = queue.failed + queue.dead_letter;
     let status: PipelineHealthStatus = 'healthy';
     if (failedTotal > UNHEALTHY_FAILED_THRESHOLD || oldestPendingAgeMs > UNHEALTHY_PENDING_AGE_MS) {
@@ -148,6 +220,10 @@ export async function GET(): Promise<NextResponse> {
       queue,
       oldestPendingAgeMs,
       perAgent,
+      llmSpend24hUsd: llmUsage.spendUsd,
+      llmSpendByAgent24h: llmUsage.byAgent,
+      cacheHitRate24h: llmUsage.hitRate,
+      llmCalls24h: llmUsage.calls,
       checkedAt: new Date().toISOString(),
     };
 

@@ -19,7 +19,7 @@ const monoTechnical = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Opportunity Earth — Cinematic Venture Radar',
+  title: 'Opportunity Earth — Intelligence Terminal',
   description: 'Global news event ingestion, story clustering, and AI-driven business, innovation, & investment opportunity intelligence.',
 };
 
@@ -32,11 +32,11 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${serifDisplay.variable} ${sansTechnical.variable} ${monoTechnical.variable}`}
+      className={`dark ${serifDisplay.variable} ${sansTechnical.variable} ${monoTechnical.variable}`}
     >
       <body
         suppressHydrationWarning
-        className="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 font-sans"
+        className="bg-slate-950 text-slate-200 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-slate-950 font-sans"
       >
         {children}
       </body>

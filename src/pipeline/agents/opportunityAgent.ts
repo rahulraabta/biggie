@@ -5,6 +5,7 @@ import type { OpportunityGenerationResult } from '@/src/services/opportunityEngi
 import { StoryClusterRecord } from '@/src/services/clusteringService';
 import { getPool } from '@/src/db/index';
 import { callLlmWithCache } from '@/src/services/llmWithCache';
+import { OPPORTUNITY_WORKFLOW_VERSION } from '@/src/services/opportunityReasoning';
 
 export class OpportunityAgent extends BaseAgent {
   readonly agentType: AgentType = 'opportunity';
@@ -17,11 +18,12 @@ export class OpportunityAgent extends BaseAgent {
     const limit = payload.limit || 15;
     const clustersDb = await pool.query<StoryClusterRecord>(
       `SELECT * FROM story_clusters
+       ${payload.clusterIds ? 'WHERE id = ANY($2::int[])' : ''}
        ORDER BY (CASE WHEN primary_region IN ('IN','US','CN','JP') THEN 0 ELSE 1 END),
                 article_count DESC,
                 id DESC
        LIMIT $1;`,
-      [limit]
+      payload.clusterIds ? [limit, payload.clusterIds] : [limit]
     );
 
     const clusters: StoryClusterRecord[] = [];
@@ -39,7 +41,8 @@ export class OpportunityAgent extends BaseAgent {
     // key so a dry-run entry can never satisfy a real (persisting) run.
     const { response: result, cached } = await callLlmWithCache<OpportunityGenerationResult>({
       agentType: 'opportunity',
-      payload: { dryRun: payload.dryRun ?? false, clusters },
+      eventId: event.id,
+      payload: { workflowVersion: OPPORTUNITY_WORKFLOW_VERSION, dryRun: payload.dryRun ?? false, clusters },
       call: async () => ({
         response: await processClusterOpportunities(clusters, { dryRun: payload.dryRun }),
       }),

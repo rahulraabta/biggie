@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/src/db/index';
-import { getPinCoordinates } from '@/src/utils/geoUtils';
+import { OPPORTUNITY_SELECT_SQL, enrichOpportunity } from '@/src/services/opportunityFeed';
 
 export interface OpportunityResponseItem {
   id: number;
@@ -46,6 +46,11 @@ export async function GET(request: Request) {
   const type = searchParams.get('type');
   const search = searchParams.get('search');
   const sort = searchParams.get('sort') || '';
+  const id = searchParams.get('id');
+
+  if (id !== null && (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id)) || Number(id) < 1)) {
+    return NextResponse.json({ success: false, error: 'Invalid opportunity id.' }, { status: 400 });
+  }
 
   if (!process.env.DATABASE_URL) {
     return NextResponse.json(
@@ -56,39 +61,7 @@ export async function GET(request: Request) {
 
   // Explicit column list — deliberately excludes the 1024-dim `embedding`
   // vector column, which would otherwise ship megabytes over the wire.
-  let queryText = `
-    SELECT
-      o.id,
-      o.cluster_id,
-      o.type,
-      o.title,
-      o.short_description,
-      o.long_description,
-      o.core_problem,
-      o.detailed_problem_breakdown,
-      o.case_example,
-      o.actionable_venture_model,
-      o.specific_catalysts,
-      o.feasibility_score,
-      o.impact_score,
-      o.time_to_market_score,
-      o.probability_score,
-      o.band,
-      o.risks,
-      o.assumptions,
-      o.source_count,
-      o.created_at,
-      o.updated_at,
-      c.title AS cluster_title,
-      c.dominant_sector,
-      c.primary_region,
-      COALESCE(c.dominant_sector, 'General') AS sector,
-      COALESCE(c.primary_region, 'Global') AS region,
-      (SELECT AVG(a.goldstein_scale) FROM articles a WHERE a.cluster_id = c.id) AS goldstein_delta
-    FROM opportunities o
-    LEFT JOIN story_clusters c ON o.cluster_id = c.id
-    WHERE 1=1
-  `;
+  let queryText = OPPORTUNITY_SELECT_SQL;
   const queryParams: unknown[] = [];
   // All `?` placeholders in a clause share one parameter (the search clause
   // reuses the same %term% across its three ILIKE predicates).
@@ -97,6 +70,9 @@ export async function GET(request: Request) {
     queryText += ` ${clause.replaceAll('?', `$${queryParams.length}`)}`;
   };
 
+  if (id !== null) {
+    addFilter(`AND o.id = ?`, Number(id));
+  }
   if (band && band !== 'all') {
     addFilter(`AND o.band = ?`, band);
   }
@@ -137,10 +113,7 @@ export async function GET(request: Request) {
     const pool = getPool();
     const dbRes = await pool.query(queryText, queryParams);
     // Pin placement: capital anchor for IN/US/CN/JP, country centroid otherwise
-    const enriched = dbRes.rows.map((row: OpportunityResponseItem) => {
-      const pin = getPinCoordinates(row.primary_region || 'GLOBAL');
-      return { ...row, latitude: pin.lat, longitude: pin.lng };
-    });
+    const enriched = dbRes.rows.map(enrichOpportunity);
     return NextResponse.json({
       success: true,
       source: 'database',

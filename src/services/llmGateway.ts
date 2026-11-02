@@ -1,4 +1,7 @@
-import { env, getLlmEnv } from '@/src/config/env';
+import { env } from '@/src/config/env';
+import { CohereClientV2, CohereError } from 'cohere-ai';
+
+export const DEFAULT_LLM_BASE_URL = 'http://127.0.0.1:8318/v1';
 
 export interface LlmRequestOptions {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
@@ -6,6 +9,7 @@ export interface LlmRequestOptions {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  localProxyOnly?: boolean;
 }
 
 export interface LlmCompletionResponse {
@@ -30,29 +34,20 @@ export interface LlmConfig {
 
 /**
  * Reads LLM provider settings from environment variables with sensible defaults.
- * Automatically selects Cohere API if COHERE_API_KEY is present; otherwise it
- * falls back to the lazily validated OpenAI env (getLlmEnv), which is the only
- * point where an OPENAI_API_KEY becomes required.
+ * Defaults to the local OpenAI-compatible CLIProxyAPI. Explicit base URLs
+ * override the default; Cohere is selected only by an explicit Cohere URL.
  */
 export function getLlmConfig(): LlmConfig {
-  const cohereKey = (env.COHERE_API_KEY || '').trim();
+  const cohereKey = (process.env.COHERE_API_KEY || '').trim();
   const genericKey = (env.LLM_API_KEY || '').trim();
-
-  if (cohereKey || genericKey) {
-    const isCohere = Boolean(cohereKey);
-    return {
-      baseUrl: env.LLM_BASE_URL || (isCohere ? 'https://api.cohere.com/v2' : 'https://api.groq.com/openai/v1'),
-      apiKey: cohereKey || genericKey,
-      model: env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'llama-3.3-70b-versatile'),
-      maxRetries: env.LLM_MAX_RETRIES,
-    };
-  }
-
-  const llm = getLlmEnv();
+  const baseUrl = env.LLM_BASE_URL || process.env.OPENAI_BASE_URL?.trim() || DEFAULT_LLM_BASE_URL;
+  const hostname = new URL(baseUrl).hostname;
+  const isLocal = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]';
+  const isCohere = hostname === 'api.cohere.com';
   return {
-    baseUrl: llm.OPENAI_BASE_URL || 'https://api.groq.com/openai/v1',
-    apiKey: llm.OPENAI_API_KEY,
-    model: llm.LLM_MODEL,
+    baseUrl,
+    apiKey: (isCohere ? cohereKey || genericKey : genericKey || (process.env.OPENAI_API_KEY || '').trim()) || (isLocal ? 'local-proxy' : ''),
+    model: env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'qwen/qwen3.8-max'),
     maxRetries: env.LLM_MAX_RETRIES,
   };
 }
@@ -61,6 +56,16 @@ export class LlmNonRetryableError extends Error {
   constructor(message: string, public status: number) {
     super(message);
     this.name = 'LlmNonRetryableError';
+  }
+}
+
+/** Opportunity reasoning must stay on the configured local proxy. */
+function assertLocalLlmConfig(config: LlmConfig): void {
+  const url = new URL(config.baseUrl);
+  if (!['http:', 'https:'].includes(url.protocol) ||
+      !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+      !['8318', '8317'].includes(url.port) || url.username || url.password) {
+    throw new LlmNonRetryableError('Opportunity reasoning requires LLM_BASE_URL (or OPENAI_BASE_URL) on localhost port 8318 or 8317.', 400);
   }
 }
 
@@ -97,68 +102,52 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, initialDelayMs
  */
 export async function completeChat(options: LlmRequestOptions, customConfig?: Partial<LlmConfig>): Promise<LlmCompletionResponse> {
   const config = { ...getLlmConfig(), ...customConfig };
+  if (options.localProxyOnly) assertLocalLlmConfig(config);
   const model = options.model || config.model;
 
-  const isLocalEndpoint = config.baseUrl.includes('localhost') || config.baseUrl.includes('127.0.0.1');
+  const isLocalEndpoint = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(config.baseUrl).hostname);
   if (!config.apiKey && !isLocalEndpoint) {
     throw new LlmNonRetryableError(
-      'No valid COHERE_API_KEY or LLM_API_KEY found in environment (.env / .env.local). Please set COHERE_API_KEY.',
+      'Set LLM_API_KEY or OPENAI_API_KEY for the configured remote endpoint (COHERE_API_KEY for Cohere).',
       401
     );
   }
 
-  const isCohere = config.baseUrl.includes('cohere.com');
+  const isCohere = new URL(config.baseUrl).hostname === 'api.cohere.com';
 
   if (isCohere) {
-    const endpoint = config.baseUrl.endsWith('/chat') ? config.baseUrl : `${config.baseUrl.replace(/\/$/, '')}/chat`;
-    const payload: any = {
-      model,
-      messages: options.messages,
-      temperature: options.temperature ?? 0.3,
-    };
-
-    if (options.jsonMode) {
-      payload.response_format = { type: 'json_object' };
-    }
+    const client = new CohereClientV2({
+      token: process.env.COHERE_API_KEY?.trim() || config.apiKey,
+      baseUrl: new URL(config.baseUrl).origin,
+      maxRetries: 0,
+    });
 
     return withRetry(async () => {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-          'User-Agent': 'NewsToOpportunities/1.0',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        if ([401, 403, 404].includes(res.status)) {
-          throw new LlmNonRetryableError(
-            `Cohere API Error (${res.status}): ${errText || 'Invalid API Key or Model'}`,
-            res.status
-          );
+      try {
+        const data = await client.chat({
+          model, messages: options.messages, temperature: options.temperature ?? 0.3,
+          maxTokens: options.maxTokens,
+          responseFormat: options.jsonMode ? { type: 'json_object' } : undefined,
+        });
+        const tokens = data.usage?.tokens;
+        return {
+          content: (data.message?.content || []).map((item) => item.type === 'text' ? item.text : '').join(''),
+          model: data.id ? `cohere-${model}` : model,
+          usage: tokens ? {
+            promptTokens: tokens.inputTokens || 0,
+            completionTokens: tokens.outputTokens || 0,
+            totalTokens: (tokens.inputTokens || 0) + (tokens.outputTokens || 0),
+          } : undefined,
+        };
+      } catch (error) {
+        if (error instanceof CohereError && error.statusCode) {
+          if ([401, 403, 404].includes(error.statusCode)) {
+            throw new LlmNonRetryableError(`Cohere API Error (${error.statusCode}): Invalid API key or model.`, error.statusCode);
+          }
+          Object.assign(error, { status: error.statusCode });
         }
-        const err = new Error(`Cohere HTTP ${res.status} ${res.statusText}: ${errText}`);
-        (err as any).status = res.status;
-        throw err;
+        throw error;
       }
-
-      const data = await res.json();
-      const content = data.message?.content?.[0]?.text || '';
-
-      return {
-        content,
-        model: data.id ? `cohere-${model}` : model,
-        usage: data.usage?.tokens
-          ? {
-              promptTokens: data.usage.tokens.input_tokens || 0,
-              completionTokens: data.usage.tokens.output_tokens || 0,
-              totalTokens: (data.usage.tokens.input_tokens || 0) + (data.usage.tokens.output_tokens || 0),
-            }
-          : undefined,
-      };
     }, config.maxRetries);
   }
 
@@ -178,6 +167,7 @@ export async function completeChat(options: LlmRequestOptions, customConfig?: Pa
   return withRetry(async () => {
     const res = await fetch(endpoint, {
       method: 'POST',
+      redirect: options.localProxyOnly ? 'error' : 'follow',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,

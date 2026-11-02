@@ -36,26 +36,25 @@ export const Header: React.FC<HeaderProps> = ({
   toggleQA,
 }) => {
   return (
-    <header className="sticky top-0 z-40 glass-chrome border-b border-white/10 px-4 lg:px-8 py-3 flex items-center justify-between shadow-lg relative">
+    <header className="sticky top-0 z-40 glass-chrome border-b border-slate-800 px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-y-3 shadow-lg">
       {/* Top Emerald Trace Bar */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
 
       {/* Left: Brand */}
       <div className="flex items-center space-x-3.5 shrink-0 z-10">
         <motion.div
           whileHover={{ scale: 1.08 }}
           transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-          className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 border border-emerald-400/60 flex items-center justify-center text-slate-950 shadow-[0_0_20px_-4px_rgba(16,185,129,0.6)] cursor-pointer"
+          className="relative w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center"
         >
-          <Sparkles className="w-5 h-5 text-amber-300 animate-spin" style={{ animationDuration: '10s' }} />
-          <Radio className="w-3.5 h-3.5 absolute text-emerald-200 animate-ping opacity-75" />
+          <Radio className="w-5 h-5 text-emerald-400" />
         </motion.div>
 
         <div>
           <div className="flex items-center space-x-2.5">
             <h1 className="text-lg font-black tracking-tight flex items-center">
               <span className="text-white">Opportunity</span>
-              <span className="emerald-gradient-text ml-1.5 font-extrabold">Earth</span>
+              <span className="text-emerald-400 ml-1.5 font-extrabold">Earth</span>
             </h1>
 
             <motion.span
@@ -72,8 +71,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           <p className="text-[11px] font-medium text-slate-400 flex items-center space-x-1.5 hidden sm:flex">
-            <Compass className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>Cinematic Geopolitical Venture Intelligence</span>
+            <Compass className="w-3.5 h-3.5 text-slate-500" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em]">Global intelligence terminal</span>
           </p>
         </div>
       </div>
@@ -87,26 +86,26 @@ export const Header: React.FC<HeaderProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search signals by country, sector, or keyword..."
-            className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-2xl text-xs font-semibold text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 transition-all duration-300 backdrop-blur-md"
+            className="w-full pl-10 pr-4 py-2 bg-slate-900/50 border border-slate-800 rounded-md text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 transition-all duration-300 backdrop-blur-md"
             aria-label="Search radar signals"
           />
         </div>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center space-x-3 z-10">
+      <div className="flex items-center space-x-2 sm:space-x-3 z-10">
         {/* Global Command Palette Trigger (⌘K) */}
         {onOpenCommandPalette && (
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-neutral-800 bg-neutral-900/50 text-neutral-400 text-xs font-mono hover:text-neutral-100 hover:border-neutral-600 transition-colors"
-            title="Search signals (⌘K)"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-800 bg-slate-900/50 text-slate-400 text-xs font-mono hover:text-slate-200 hover:border-slate-600 transition-colors"
+            title="Command palette (⌘K / Ctrl+K)"
             aria-label="Open global command palette"
           >
             <Search className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Search signals...</span>
-            <span className="text-neutral-600">⌘K</span>
+            <span className="hidden sm:inline">Commands</span>
+            <kbd className="rounded border border-slate-700 bg-slate-800 px-1 text-[10px] text-slate-400">⌘K</kbd>
           </button>
         )}
 

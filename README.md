@@ -55,14 +55,20 @@ An intelligent global news event ingestion, story clustering, and AI-driven mark
 
 ## Required Environment Variables
 
+`npm run ingest` starts the continuous worker: it polls GDELT every 15 minutes, streams ZIP rows in bounded batches, deduplicates event IDs in PostgreSQL, resumes from a durable export checkpoint, and queues only new clusters for the existing opportunity agent. Synthesis runs separately so LLM latency does not delay polling. Failed synthesis tasks retry up to `PIPELINE_MAX_RETRIES`; interrupted tasks recover after the greater of one hour or `PIPELINE_TIMEOUT_MS`. `npm run ingest:once` performs one ingestion poll and queues synthesis; `npm run ingest:dry-run` retains the existing read-only parser check.
+
+Apply the database migrations before starting the worker. Set `DATABASE_URL` for pooled Neon queries and `DATABASE_URL_UNPOOLED` for ingestion and migrations. The dashboard connects to `/api/opportunities/stream` using native EventSource. The SSE route checks for new opportunity IDs every 5 seconds and sends keep-alive comments every 15 seconds. Reconnects resume from `Last-Event-ID`; incoming records update cards and the rolling 24-hour heatmap. Deploy on a host that supports long-lived streaming responses.
+
+Opportunity generation runs Researcher → Analyst → Critic, with at most two revisions for rejected drafts. Research includes entities, region, primary industry, and a two-sentence factual summary. Viability (`probability_score`) is validated as feasibility × 40% + impact × 40% + time-to-market × 20%. Each candidate must receive `{"status":"APPROVED"}` from the Critic before persistence; `REJECTED` decisions include a reason. Logs include approval/rejection decision counts per cluster, including revisions. This chain requires a loopback `LLM_BASE_URL` (or `OPENAI_BASE_URL`) on port 8318 or 8317; remote endpoints are rejected. Apply `src/db/migrations/008_opportunity_reasoning.sql` before synthesis; approved JSON, evidence, score calculations, and Critic decisions are stored in `opportunities.validated_output`.
+
 All configuration settings are controlled via environment variables. Refer to `.env.example` for details:
 
 | Variable | Description | Default / Example |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/dbname` |
-| `LLM_BASE_URL` | OpenAI-compatible endpoint | `https://api.groq.com/openai/v1` |
-| `LLM_API_KEY` | LLM provider API Key | *(empty for mock mode)* |
-| `LLM_MODEL` | LLM model identifier | `llama-3.3-70b-versatile` |
+| `LLM_BASE_URL` | OpenAI-compatible endpoint; overrides `OPENAI_BASE_URL` | `http://127.0.0.1:8318/v1` |
+| `LLM_API_KEY` | Proxy API key, if authentication is enabled | *(optional for a local proxy without authentication)* |
+| `LLM_MODEL` | Model identifier enabled by the proxy | `qwen/qwen3.8-max` |
 | `LLM_MAX_RETRIES` | Max retries for transient LLM errors | `3` |
 | `MIN_RELEVANCE_SCORE` | Minimum relevance threshold (0.0 to 1.0) | `0.35` |
 | `MIN_NUM_MENTIONS` | Minimum GDELT article mention count | `2` |

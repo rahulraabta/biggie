@@ -16,12 +16,12 @@ export const CommandMetricsRow: React.FC<CommandMetricsRowProps> = ({
   totalOpportunitiesCount = 0,
   isLoading = false,
 }) => {
-  const greenCount = mapOverview?.bandCounts.green || 4;
-  const orangeCount = mapOverview?.bandCounts.orange || 2;
-  const redCount = mapOverview?.bandCounts.red || 1;
-  const totalSignals = mapOverview?.totalGlobalSignals || 85;
-  const activeCountries = mapOverview?.totalCountriesActive || 7;
-  const totalOpps = totalOpportunitiesCount || mapOverview?.totalOpportunities || 14;
+  const greenCount = mapOverview?.bandCounts.green ?? 0;
+  const orangeCount = mapOverview?.bandCounts.orange ?? 0;
+  const redCount = mapOverview?.bandCounts.red ?? 0;
+  const totalSignals = mapOverview?.totalGlobalSignals ?? 0;
+  const activeCountries = mapOverview?.totalCountriesActive ?? 0;
+  const totalOpps = totalOpportunitiesCount;
 
   if (isLoading) {
     return (

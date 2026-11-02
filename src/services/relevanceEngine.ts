@@ -62,7 +62,7 @@ function getCameoScore(eventCode: string): number {
 function extractTokens(event: GdeltEvent): string[] {
   const rawText = `${event.sourceUrl} ${event.actor1} ${event.actor2}`.toLowerCase();
   // Remove non-alphanumeric separators to isolate words/tokens
-  return rawText.split(/[^a-z0-9]+/g).filter((t) => t.length > 2);
+  return rawText.split(/[^a-z0-9]+/g).filter(Boolean);
 }
 
 /**
@@ -99,25 +99,15 @@ export function evaluateEventRelevance(
   const cameoScore = getCameoScore(event.eventCode);
 
   // 2. Keyword & Sector Match Score (35%)
-  const tokens = extractTokens(event);
-  const matchedSectorsSet = new Set<string>();
-  const matchedKeywordsSet = new Set<string>();
-
-  for (const token of tokens) {
-    for (const sector of config.targetSectors) {
-      if (token.includes(sector) || sector.includes(token)) {
-        matchedSectorsSet.add(sector);
-      }
-    }
-    for (const keyword of config.customKeywords) {
-      if (token.includes(keyword) || keyword.includes(token)) {
-        matchedKeywordsSet.add(keyword);
-      }
-    }
-  }
-
-  const matchedSectors = Array.from(matchedSectorsSet);
-  const matchedKeywords = Array.from(matchedKeywordsSet);
+  const searchable = ` ${extractTokens(event).join(' ')} `;
+  const matches = (term: string) => {
+    const phrase = term.toLowerCase().split(/[^a-z0-9]+/g).filter(Boolean).join(' ');
+    return !!phrase && (searchable.includes(` ${phrase} `)
+      || searchable.includes(` ${phrase.replace(/s$/, '')} `)
+      || searchable.includes(` ${phrase}s `));
+  };
+  const matchedSectors = [...new Set(config.targetSectors.filter(matches))];
+  const matchedKeywords = [...new Set(config.customKeywords.filter(matches))];
 
   const totalMatches = matchedSectors.length + matchedKeywords.length;
   const keywordScore = Math.min(1.0, totalMatches * 0.35);
@@ -141,7 +131,9 @@ export function evaluateEventRelevance(
     (0.30 * cameoScore + 0.35 * keywordScore + 0.20 * prominenceScore + 0.15 * geoScore).toFixed(3)
   );
 
-  const isRelevant = score >= config.minRelevanceScore;
+  const hasTopicMatch = (!config.targetSectors.length && !config.customKeywords.length)
+    || matchedSectors.length > 0 || matchedKeywords.length > 0;
+  const isRelevant = score >= config.minRelevanceScore && hasTopicMatch;
 
   return {
     isRelevant,

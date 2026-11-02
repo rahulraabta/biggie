@@ -12,6 +12,7 @@ interface QAPanelProps {
   onCloseMobile?: () => void;
   isDocked?: boolean;
   onToggleDock?: () => void;
+  pendingQuestion?: { id: number; text: string } | null;
 }
 
 interface Message {
@@ -24,10 +25,10 @@ interface Message {
 }
 
 const CHARACTER_PROMPTS = [
-  '⚡ Fast-track 90-day GTM plan',
-  '🛡️ Audit execution risks',
-  '💰 Estimate CapEx & unit economics',
-  '🔎 Identify target off-takers',
+  'Build a 90-day go-to-market plan',
+  'Audit execution risks',
+  'Estimate capital & unit economics',
+  'Identify target customers',
 ];
 
 export const QAPanel: React.FC<QAPanelProps> = ({
@@ -37,12 +38,13 @@ export const QAPanel: React.FC<QAPanelProps> = ({
   onCloseMobile,
   isDocked = false,
   onToggleDock,
+  pendingQuestion,
 }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome-scout',
       sender: 'ai',
-      text: "Hey there! I'm Radar Scout 🧭, your strategic venture assistant! Pick any market node or dossier on the map, and let's pressure-test risks, estimate unit economics, and build winning field plans together!",
+      text: 'Select an opportunity to analyze execution risks, unit economics, and market strategy. Use ⌘K or Ctrl+K to ask a question from anywhere.',
       timestamp: 'Just now',
       mood: 'happy',
     },
@@ -50,9 +52,14 @@ export const QAPanel: React.FC<QAPanelProps> = ({
   const [inputQuery, setInputQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastQuestionRef = useRef<number | null>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const pane = messagesEndRef.current?.parentElement;
+    pane?.scrollTo({
+      top: pane.scrollHeight,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
   };
 
   useEffect(() => {
@@ -103,7 +110,7 @@ export const QAPanel: React.FC<QAPanelProps> = ({
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: `Oops! I hit a quick hiccup analyzing your query: ${err.message}. Give it another shot!`,
+        text: `Unable to analyze this question: ${err.message}. Please try again.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -112,11 +119,17 @@ export const QAPanel: React.FC<QAPanelProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!pendingQuestion || isSending || lastQuestionRef.current === pendingQuestion.id) return;
+    lastQuestionRef.current = pendingQuestion.id;
+    void handleSend(pendingQuestion.text);
+  }, [pendingQuestion, isSending]);
+
   return (
     <div
       className={`glass-chrome border-l border-white/10 flex flex-col h-full shadow-md relative z-20 ${
         isOpenMobile
-          ? 'block fixed inset-y-0 right-0 z-50 pt-16 shadow-2xl w-full max-w-sm'
+          ? 'flex pt-4 shadow-2xl w-full max-w-sm'
           : isDocked
           ? 'w-14 items-center'
           : 'w-full'
@@ -128,23 +141,22 @@ export const QAPanel: React.FC<QAPanelProps> = ({
           {/* Scout Character Avatar */}
           <motion.div
             whileHover={{ rotate: 15, scale: 1.1 }}
-            className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 border border-emerald-300/60 flex items-center justify-center text-slate-950 shadow-[0_0_18px_-2px_rgba(16,185,129,0.55)] relative"
+            className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center relative"
           >
-            <Compass className="w-5 h-5 text-slate-950 animate-spin" style={{ animationDuration: '14s' }} />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 absolute -top-0.5 -right-0.5 border-2 border-slate-950 animate-ping" />
+            <Compass className="w-5 h-5 text-emerald-400" />
           </motion.div>
 
           {!isDocked && (
             <div>
               <div className="flex items-center space-x-1.5">
                 <h3 className="text-xs font-black text-slate-100 uppercase tracking-wider flex items-center font-mono">
-                  RADAR SCOUT 🧭
+                  RADAR SCOUT
                 </h3>
                 <span className="text-[9px] px-1.5 py-0.2 rounded-full font-extrabold bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/40">
                   AI
                 </span>
               </div>
-              <span className="text-[10px] font-bold text-emerald-300 block">Your Venture Field Guide</span>
+              <span className="text-[10px] font-mono text-slate-500 block">STRATEGIC INTELLIGENCE</span>
             </div>
           )}
         </div>
@@ -152,7 +164,7 @@ export const QAPanel: React.FC<QAPanelProps> = ({
         {onCloseMobile && (
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-1.5 text-slate-500 hover:text-slate-100 transition-colors"
+            className={`${isOpenMobile ? '' : 'lg:hidden'} p-1.5 text-slate-500 hover:text-slate-100 transition-colors`}
             aria-label="Close Scout Drawer"
           >
             <X className="w-4 h-4" />

@@ -7,7 +7,8 @@ declare global {
 
 export function getPool(): Pool {
   if (!globalThis.pgPool) {
-    const connectionString = env.DATABASE_URL.trim();
+    const connectionString = process.env.DATABASE_URL?.trim();
+    if (!connectionString) throw new Error('DATABASE_URL is required for the PostgreSQL connection.');
     globalThis.pgPool = new pg.Pool({
       connectionString,
       max: env.PG_POOL_MAX,
