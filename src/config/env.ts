@@ -23,7 +23,8 @@ const infraSchema = z.object({
   // Optional passthroughs consumed by src/services/**. Never required here.
   COHERE_API_KEY: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
-  LLM_BASE_URL: z.string().url().optional(),
+  // The gateway validates the URL on first request, not during module loading.
+  LLM_BASE_URL: z.string().optional(),
   LLM_MODEL: z.string().optional(),
   LLM_MAX_RETRIES: z.coerce.number().default(5),
   VOYAGE_API_KEY: z.string().optional(),

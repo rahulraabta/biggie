@@ -1,9 +1,10 @@
+export const dynamic = 'force-dynamic';
+
 import { getPool } from '@/src/db/index';
 import { OPPORTUNITY_SELECT_SQL, enrichOpportunity } from '@/src/services/opportunityFeed';
 import type { OpportunityResponseItem } from '../route';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   if (!process.env.DATABASE_URL) return Response.json({ error: 'Database unavailable.' }, { status: 503 });

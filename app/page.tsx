@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import type { Metadata } from 'next';
 import { LandingPage } from '@/components/marketing/LandingPage';
 

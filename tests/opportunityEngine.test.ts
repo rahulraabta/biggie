@@ -7,7 +7,7 @@ import {
   processClusterOpportunities,
 } from '../src/services/opportunityEngine.js';
 import { getPool } from '../src/db/index.js';
-import { completeChat, DEFAULT_LLM_BASE_URL, getLlmConfig, LlmNonRetryableError } from '../src/services/llmGateway.js';
+import { completeChat, getLlmConfig, LlmNonRetryableError } from '../src/services/llmGateway.js';
 import { reasonAboutCluster, type RawLlmOpportunity } from '../src/services/opportunityReasoning.js';
 import { areArticlesSimilar, clusterArticles, ArticleRecord, StoryClusterRecord } from '../src/services/clusteringService.js';
 
@@ -417,7 +417,7 @@ test('database write failures propagate for pipeline retry', async (t) => {
 
 test('gateway sends JSON completions to the local proxy and respects port overrides', async (t) => {
   mockCompletions(t, [{}]);
-  const response = await completeChat({ messages: [{ role: 'user', content: 'Return JSON.' }], jsonMode: true }, { baseUrl: DEFAULT_LLM_BASE_URL });
+  const response = await completeChat({ messages: [{ role: 'user', content: 'Return JSON.' }], jsonMode: true }, { baseUrl: 'http://127.0.0.1:8318/v1' });
   assert.equal(response.model, 'local-test-model');
   assert.equal((globalThis.fetch as unknown as { mock: { calls: Array<{ arguments: unknown[] }> } }).mock.calls[0].arguments[0], 'http://127.0.0.1:8318/v1/chat/completions');
   const originalBaseUrl = process.env.OPENAI_BASE_URL;

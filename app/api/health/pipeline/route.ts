@@ -1,7 +1,7 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { query } from '@/src/db/index';
-
-export const dynamic = 'force-dynamic';
 
 export type PipelineHealthStatus = 'healthy' | 'degraded' | 'unhealthy';
 

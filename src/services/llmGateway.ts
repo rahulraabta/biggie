@@ -1,7 +1,6 @@
 import { env } from '@/src/config/env';
-import { CohereClientV2, CohereError } from 'cohere-ai';
 
-export const DEFAULT_LLM_BASE_URL = 'http://127.0.0.1:8318/v1';
+export const DEFAULT_LLM_BASE_URL = 'https://agentrouter.org/v1';
 
 export interface LlmRequestOptions {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
@@ -34,19 +33,18 @@ export interface LlmConfig {
 
 /**
  * Reads LLM provider settings from environment variables with sensible defaults.
- * Defaults to the local OpenAI-compatible CLIProxyAPI. Explicit base URLs
+ * Defaults to AgentRouter. Explicit base URLs
  * override the default; Cohere is selected only by an explicit Cohere URL.
  */
 export function getLlmConfig(): LlmConfig {
   const cohereKey = (process.env.COHERE_API_KEY || '').trim();
-  const genericKey = (env.LLM_API_KEY || '').trim();
-  const baseUrl = env.LLM_BASE_URL || process.env.OPENAI_BASE_URL?.trim() || DEFAULT_LLM_BASE_URL;
+  const genericKey = (process.env.LLM_API_KEY || '').trim();
+  const baseUrl = process.env.LLM_BASE_URL?.trim() || process.env.OPENAI_BASE_URL?.trim() || DEFAULT_LLM_BASE_URL;
   const hostname = new URL(baseUrl).hostname;
-  const isLocal = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]';
   const isCohere = hostname === 'api.cohere.com';
   return {
     baseUrl,
-    apiKey: (isCohere ? cohereKey || genericKey : genericKey || (process.env.OPENAI_API_KEY || '').trim()) || (isLocal ? 'local-proxy' : ''),
+    apiKey: (isCohere ? cohereKey || genericKey : genericKey || (process.env.OPENAI_API_KEY || '').trim()) || 'dummy-key',
     model: env.LLM_MODEL || (isCohere ? 'command-r-08-2024' : 'qwen/qwen3.8-max'),
     maxRetries: env.LLM_MAX_RETRIES,
   };
@@ -116,6 +114,7 @@ export async function completeChat(options: LlmRequestOptions, customConfig?: Pa
   const isCohere = new URL(config.baseUrl).hostname === 'api.cohere.com';
 
   if (isCohere) {
+    const { CohereClientV2, CohereError } = await import('cohere-ai');
     const client = new CohereClientV2({
       token: process.env.COHERE_API_KEY?.trim() || config.apiKey,
       baseUrl: new URL(config.baseUrl).origin,

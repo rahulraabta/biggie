@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { getPool } from '@/src/db/index';
 import { OPPORTUNITY_SELECT_SQL, enrichOpportunity } from '@/src/services/opportunityFeed';
